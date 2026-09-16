@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "relay-recap",
+  "description": "Relay recap: combine many runners' watch files into one team activity, map page and flythrough video.",
+  "owner": { "name": "Yanjun Qi / Jane" },
+  "plugins": [
+    {
+      "name": "relay-recap",
+      "description": "Turns a team relay's GPS watch files from many runners into one combined FIT/GPX activity, a Strava-safe upload copy, a shareable route map page with PNG snapshots, and a 3D flythrough video.",
+      "author": { "name": "Yanjun Qi / Jane" },
+      "source": "./"
+    }
+  ]
+}

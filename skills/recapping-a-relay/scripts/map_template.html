@@ -1,0 +1,932 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__TITLE__</title>
+<meta name="description" content="__DESCRIPTION__">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Overpass+Mono:wght@400;600&family=Overpass:wght@400;600;800&display=swap">
+<style>
+  :root {
+    color-scheme: light;
+    --ground: #E7EBE8;
+    --surface: #F4F6F3;
+    --ink: #16201E;
+    --ink-2: #44514E;
+    --muted: #677370;
+    --rule: #C7CFCB;
+    --rule-soft: #D9DFDB;
+    --route: #C2410C;
+    --route-soft: rgba(194, 65, 12, 0.16);
+    --route-wash: rgba(194, 65, 12, 0.10);
+    --on-route: #FFF8F3;
+    --halo: #F7F9F6;
+    --gap: #2E3B38;
+    --night: #3A4A7A;
+    --night-alpha: 0.12;
+    --night-ink: #33416C;
+    --focus: #1F5FAD;
+    /* one color per runner, hue-spread so runners on consecutive legs contrast */
+    --r1: #B42318; --r2: #15803D; --r3: #2557D6; --r4: #9A6A06; --r5: #A21CAF;
+    --r6: #0F766E; --r7: #C2410C; --r8: #6D28D9; --r9: #4D7C0F; --r10: #BE185D;
+    --r11: #0369A1; --r12: #7C4A21; --r13: #475569;
+    --basemap-light: inline;
+    --basemap-dark: none;
+    --sans: "Overpass", "Helvetica Neue", Arial, sans-serif;
+    --mono: "Overpass Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --ground: #0C1211;
+      --surface: #131A19;
+      --ink: #E3E9E6;
+      --ink-2: #A6B2AE;
+      --muted: #7D8A87;
+      --rule: #29332F;
+      --rule-soft: #1E2725;
+      --route: #F0702E;
+      --route-soft: rgba(240, 112, 46, 0.22);
+      --route-wash: rgba(240, 112, 46, 0.13);
+      --on-route: #1A0D05;
+      --halo: #0A100F;
+      --gap: #C4CECA;
+      --night: #8C9AD6;
+      --night-alpha: 0.13;
+      --night-ink: #AEB9E8;
+      --focus: #7FB0F0;
+      --r1: #F87171; --r2: #4ADE80; --r3: #7DA7FF; --r4: #F2B723; --r5: #E879F9;
+      --r6: #2DD4BF; --r7: #FB923C; --r8: #A78BFA; --r9: #A3E635; --r10: #F472B6;
+      --r11: #38BDF8; --r12: #C89A73; --r13: #94A3B8;
+      --basemap-light: none;
+      --basemap-dark: inline;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --ground: #0C1211;
+    --surface: #131A19;
+    --ink: #E3E9E6;
+    --ink-2: #A6B2AE;
+    --muted: #7D8A87;
+    --rule: #29332F;
+    --rule-soft: #1E2725;
+    --route: #F0702E;
+    --route-soft: rgba(240, 112, 46, 0.22);
+    --route-wash: rgba(240, 112, 46, 0.13);
+    --on-route: #1A0D05;
+    --halo: #0A100F;
+    --gap: #C4CECA;
+    --night: #8C9AD6;
+    --night-alpha: 0.13;
+    --night-ink: #AEB9E8;
+    --focus: #7FB0F0;
+    --r1: #F87171; --r2: #4ADE80; --r3: #7DA7FF; --r4: #F2B723; --r5: #E879F9;
+    --r6: #2DD4BF; --r7: #FB923C; --r8: #A78BFA; --r9: #A3E635; --r10: #F472B6;
+    --r11: #38BDF8; --r12: #C89A73; --r13: #94A3B8;
+    --basemap-light: none;
+    --basemap-dark: inline;
+  }
+
+  /* set --rc on any element and its route colors become that runner's */
+  .tint {
+    --route: var(--rc);
+    --route-soft: color-mix(in srgb, var(--rc) 22%, transparent);
+    --route-wash: color-mix(in srgb, var(--rc) 12%, transparent);
+  }
+
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html { background: var(--ground); }
+  body {
+    margin: 0;
+    background: var(--ground);
+    color: var(--ink);
+    font: 400 15px/1.55 var(--sans);
+    padding-inline: clamp(16px, 4vw, 48px);
+    padding-block: clamp(28px, 5vw, 56px) 48px;
+    -webkit-font-smoothing: antialiased;
+  }
+  .page { max-width: 1240px; margin-inline: auto; display: grid; grid-template-columns: minmax(0, 1fr); gap: clamp(36px, 5vw, 56px); }
+  h1, h2, p, dl, dd, figure { margin: 0; }
+  [tabindex]:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+  .label {
+    font: 600 11px/1.2 var(--mono);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* masthead */
+  .masthead {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+    gap: 28px 56px;
+    align-items: end;
+  }
+  .masthead-title { display: grid; gap: 14px; }
+  h1 {
+    font: 800 clamp(48px, 8.5vw, 92px)/0.9 var(--sans);
+    letter-spacing: -0.03em;
+    text-wrap: balance;
+  }
+  .dek { max-width: 58ch; color: var(--ink-2); font-size: 17px; text-wrap: pretty; }
+  .result {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px 28px;
+    border-top: 3px solid var(--ink);
+    padding-top: 18px;
+  }
+  .result dd { margin-top: 6px; font: 600 30px/1.05 var(--sans); letter-spacing: -0.015em; }
+  .result dd .unit { font-size: 17px; font-weight: 600; color: var(--ink-2); letter-spacing: 0; }
+  .result dd small { display: block; margin-top: 5px; font: 400 13px/1.35 var(--sans); color: var(--ink-2); letter-spacing: 0; }
+  .result .tracked dd { color: var(--route); }
+  @media (max-width: 860px) { .masthead { grid-template-columns: 1fr; } }
+
+  /* section heads */
+  .section-head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 24px; margin-bottom: 14px; }
+  h2 { font: 800 24px/1.15 var(--sans); letter-spacing: -0.01em; text-wrap: balance; }
+  .note { color: var(--ink-2); max-width: 70ch; font-size: 14px; }
+  .legend { display: flex; flex-wrap: wrap; gap: 6px 18px; list-style: none; margin: 0; padding: 0; font-size: 13px; color: var(--ink-2); }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .sw { display: inline-block; width: 22px; height: 0; }
+  .sw-track { border-top: 3px solid var(--ink-2); border-radius: 2px; }
+  .sw-gap { border-top: 2px dotted var(--gap); }
+  .sw-recon { border-top: 3px dashed var(--ink-2); }
+  .sw-runner { width: 12px; height: 12px; border-radius: 50%; background: var(--rc); }
+  .runner-key { margin: -2px 0 14px; gap: 5px 16px; align-items: center; }
+  .runner-key .van { color: var(--muted); font: 600 10.5px/1.2 var(--mono); letter-spacing: 0.06em; text-transform: uppercase; }
+  .rdot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--rc); margin-right: 7px; vertical-align: 1px; }
+  .sw-night { width: 14px; height: 12px; background: var(--night); opacity: calc(var(--night-alpha) * 2.4); border-radius: 2px; }
+
+  /* course strip */
+  .strip { display: flex; gap: 2px; height: 38px; }
+  .cell {
+    flex: 1 1 0;
+    min-width: 0;
+    display: grid;
+    place-items: center;
+    overflow: hidden;
+    border-radius: 2px;
+    font: 600 11px/1 var(--mono);
+    cursor: pointer;
+    transition: opacity 120ms ease;
+  }
+  .cell.track { background: var(--route); color: var(--on-route); }
+  .cell.gap { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--gap); }
+  .cell.partial {
+    background: linear-gradient(90deg, var(--route) var(--fill), var(--surface) var(--fill));
+    box-shadow: inset 0 0 0 1.5px var(--route);
+    color: var(--on-route);
+  }
+  .cell.recon {
+    background: repeating-linear-gradient(135deg, var(--route-soft) 0 4px, transparent 4px 8px), var(--surface);
+    box-shadow: inset 0 0 0 1.5px var(--route);
+    color: var(--ink);
+  }
+  .cell.partrecon {
+    background: linear-gradient(90deg, transparent var(--fill), var(--route) var(--fill)), repeating-linear-gradient(135deg, var(--route-soft) 0 4px, transparent 4px 8px), var(--surface);
+    box-shadow: inset 0 0 0 1.5px var(--route);
+    color: var(--on-route);
+  }
+  .cell .n { padding-top: 2px; }
+  .cell.tight .n { visibility: hidden; }
+  .strip-ends { display: flex; justify-content: space-between; gap: 16px; margin-top: 8px; font-size: 13px; color: var(--muted); }
+  .missing-list { margin-top: 14px; font-size: 14px; color: var(--ink-2); }
+  .missing-list strong { color: var(--ink); font-weight: 600; }
+
+  [data-scope].has-active [data-key]:not(.is-active) { opacity: 0.32; }
+
+  /* atlas: map + ledger */
+  .atlas { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(490px, 1fr); gap: 20px; align-items: start; }
+  @media (max-width: 940px) { .atlas { grid-template-columns: minmax(0, 1fr); } }
+  .map-wrap { display: grid; gap: 8px; }
+  .map { position: relative; background: var(--surface); border-radius: 4px; overflow: hidden; box-shadow: 0 0 0 1px var(--rule); }
+  .map svg { display: block; width: 100%; height: auto; }
+  .basemap-light { display: var(--basemap-light); }
+  .basemap-dark { display: var(--basemap-dark); }
+  .gapline { fill: none; stroke: var(--gap); stroke-width: 2; stroke-dasharray: 0.5 6; stroke-linecap: round; vector-effect: non-scaling-stroke; transition: opacity 120ms ease; }
+  .gapline.is-active { stroke-width: 3.2; }
+  .halo { fill: none; stroke: var(--halo); stroke-width: 7; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; opacity: 0.85; transition: opacity 120ms ease; }
+  .route { fill: none; stroke: var(--route); stroke-width: 3; stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke; transition: opacity 120ms ease; }
+  .route.recon { stroke-dasharray: 7 6; }
+  .top .halo { stroke-width: 10; opacity: 1; }
+  .top .route { stroke-width: 5; }
+  .hit { fill: none; stroke: transparent; stroke-width: 20; pointer-events: stroke; vector-effect: non-scaling-stroke; cursor: pointer; }
+  .plates { position: absolute; inset: 0; pointer-events: none; }
+  .plate {
+    position: absolute;
+    transform: translate(calc(-50% + var(--dx, 0px)), calc(-50% + var(--dy, 0px)));
+    padding: 3px 5px 1px;
+    border-radius: 3px;
+    font: 600 11px/1.2 var(--mono);
+    white-space: nowrap;
+    transition: opacity 120ms ease;
+  }
+  .plate.track { background: var(--route); color: var(--on-route); box-shadow: 0 0 0 1.5px var(--halo); }
+  .plate.gap { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.25px var(--gap), 0 0 0 1.5px var(--halo); }
+  .plate.recon { background: var(--surface); color: var(--ink); box-shadow: inset 0 0 0 1.25px var(--route), 0 0 0 1.5px var(--halo); }
+  .plate.is-active { box-shadow: 0 0 0 2px var(--ink); z-index: 2; }
+  .pin { position: absolute; width: 10px; height: 10px; border-radius: 50%; transform: translate(-50%, -50%); background: var(--ink); box-shadow: 0 0 0 2px var(--halo); }
+  .endpoint {
+    position: absolute;
+    --ax: -50%;
+    --ay: calc(-100% - 10px);
+    transform: translate(var(--ax), var(--ay));
+    padding: 4px 7px 2px;
+    border-radius: 3px;
+    background: var(--ink);
+    color: var(--surface);
+    font: 800 10.5px/1.2 var(--sans);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+  .endpoint.below { --ay: 10px; }
+  .endpoint.to-left { --ax: calc(-100% + 14px); }
+  .endpoint.to-right { --ax: -14px; }
+  .readout {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    width: min(320px, calc(100% - 24px));
+    display: grid;
+    gap: 4px;
+    padding: 12px 14px 12px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--surface) 90%, transparent);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 0 0 1px var(--rule);
+  }
+  .ro-title { font: 800 18px/1.2 var(--sans); letter-spacing: -0.01em; text-wrap: balance; }
+  .ro-line { font-size: 13.5px; color: var(--ink-2); line-height: 1.45; }
+  .ro-line.data { font: 400 12.5px/1.5 var(--mono); color: var(--ink); }
+  .ro-line.file { font: 400 11.5px/1.45 var(--mono); color: var(--muted); overflow-wrap: anywhere; }
+  .attr { font-size: 11.5px; color: var(--muted); }
+  @media (max-width: 600px) {
+    .readout { position: static; width: auto; box-shadow: none; border-top: 1px solid var(--rule); border-radius: 0; background: var(--surface); }
+    .plate.track { display: none; }
+  }
+
+  .ledger { display: flex; flex-direction: column; min-height: 0; background: var(--surface); border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
+  .ledger-scroll { overflow: auto; min-height: 0; flex: 1; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font: 400 12.5px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+  thead th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: var(--surface);
+    text-align: left;
+    padding: 11px 8px 8px;
+    border-bottom: 1px solid var(--rule);
+    font: 600 10.5px/1.2 var(--mono);
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  tbody td { padding: 7px 8px 5px; border-bottom: 1px solid var(--rule-soft); white-space: nowrap; }
+  th:first-child, td:first-child { padding-left: 14px; }
+  th:last-child, td:last-child { padding-right: 14px; }
+  .num { text-align: right; }
+  td.leg { font-weight: 600; }
+  td.rating { font-family: var(--sans); font-size: 13px; color: var(--ink-2); }
+  td.runner, td.legs { font-family: var(--sans); font-size: 13px; color: var(--ink-2); }
+  td.name { font-family: var(--sans); font-size: 13.5px; font-weight: 600; }
+  .runners-scroll { overflow-x: auto; background: var(--surface); border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); }
+  td.est { color: var(--muted); }
+  td.with { color: var(--muted); font-family: var(--sans); font-size: 12.5px; }
+  tbody tr[data-key] { cursor: pointer; }
+  tbody tr.is-active { background: var(--route-wash); }
+  tr.day td { padding: 12px 14px 5px; font: 600 10.5px/1.2 var(--mono); letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-2); border-bottom: 1px solid var(--rule); background: var(--surface); }
+  .chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11.5px; }
+  .chip::before { content: ""; width: 8px; height: 8px; border-radius: 50%; }
+  .chip.track::before { background: var(--route); }
+  .chip.partial::before { background: linear-gradient(90deg, var(--route) 50%, transparent 50%); box-shadow: inset 0 0 0 1.5px var(--route); }
+  .chip.recon::before { background: var(--route-soft); box-shadow: inset 0 0 0 1.5px var(--route); }
+  .chip.partrecon::before { background: linear-gradient(90deg, var(--route-soft) 50%, var(--route) 50%); box-shadow: inset 0 0 0 1.5px var(--route); }
+  .chip.gap { color: var(--muted); }
+  .chip.gap::before { box-shadow: inset 0 0 0 1.5px var(--gap); }
+  .ledger-foot { padding: 10px 14px 12px; border-top: 1px solid var(--rule); font-size: 12.5px; color: var(--muted); }
+
+  /* chart */
+  .chart-block { background: var(--surface); border-radius: 4px; box-shadow: 0 0 0 1px var(--rule); padding: 18px clamp(12px, 2vw, 20px) 10px; }
+  .chart-readout { font: 400 13px/1.4 var(--mono); color: var(--ink-2); min-height: 1.4em; }
+  .chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+  .chart .grid { stroke: var(--rule-soft); stroke-width: 1; }
+  .chart .baseline { stroke: var(--rule); stroke-width: 1; }
+  .chart .tick { fill: var(--muted); font: 400 11px var(--mono); }
+  .chart .tick.day { fill: var(--ink-2); font-weight: 600; }
+  .chart .night { fill: var(--night); opacity: var(--night-alpha); }
+  .chart .night-label { fill: var(--night-ink); font: 600 11px var(--mono); }
+  .chart .area { fill: var(--route-soft); stroke: none; transition: opacity 120ms ease; }
+  .chart .line { fill: none; stroke: var(--route); stroke-width: 1.5; stroke-linejoin: round; transition: opacity 120ms ease; }
+  .chart .band-track { fill: var(--route); transition: opacity 120ms ease; }
+  .chart .band-gap { fill: var(--surface); stroke: var(--gap); stroke-width: 1; transition: opacity 120ms ease; }
+  .chart .band-label { font: 600 10.5px var(--mono); pointer-events: none; }
+  .chart .band-label.track { fill: var(--on-route); }
+  .chart .band-label.gap { fill: var(--ink); }
+  .chart .band-track.recon { fill: var(--route-soft); stroke: var(--route); stroke-width: 1; }
+  .chart .band-label.recon { fill: var(--ink); }
+  .chart .area.recon { fill: var(--route-wash); }
+  .chart .line.recon { stroke-dasharray: 4 3; }
+  .chart .cross { stroke: var(--ink); stroke-width: 1; }
+  .chart .cross-dot { fill: var(--route); stroke: var(--surface); stroke-width: 2; }
+  .chart .overlay { fill: transparent; cursor: crosshair; }
+
+  footer { display: grid; gap: 6px; border-top: 1px solid var(--rule); padding-top: 18px; font-size: 13px; color: var(--muted); max-width: 90ch; }
+  footer strong { color: var(--ink-2); font-weight: 600; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+
+<main class="page">
+  <header class="masthead">
+    <div class="masthead-title">
+      <p class="label" id="kicker"></p>
+      <h1 id="team"></h1>
+      <p class="dek" id="dek"></p>
+    </div>
+    <dl class="result" id="result"></dl>
+  </header>
+
+  <section aria-labelledby="course-h" data-scope id="course">
+    <div class="section-head">
+      <h2 id="course-h"></h2>
+      <ul class="legend">
+        <li><span class="sw sw-track"></span>GPS track</li>
+        <li><span class="sw sw-recon"></span>Reconstructed</li>
+        <li id="legend-gap"><span class="sw sw-gap"></span>No file yet</li>
+      </ul>
+    </div>
+    <div class="strip" id="strip" role="list" aria-label="Legs by official distance"></div>
+    <div class="strip-ends"><span id="strip-start"></span><span id="strip-finish"></span></div>
+    <p class="missing-list" id="missing-list"></p>
+  </section>
+
+  <section aria-labelledby="route-h">
+    <div class="section-head">
+      <h2 id="route-h">The route, exchange to exchange</h2>
+      <p class="note"><span id="note-gap">Dotted lines connect the exchanges on either side of a leg with no file. They are straight lines, not the course. </span>Dashed legs are reconstructed from the official course and handoff times, not recorded.</p>
+    </div>
+    <ul class="legend runner-key" id="runner-key" aria-label="Runner colors"></ul>
+    <div class="atlas">
+      <div class="map-wrap">
+        <figure class="map" data-scope id="map">
+          <svg id="map-svg" role="img" aria-label="Map of the combined relay route over shaded relief">
+            <image class="basemap-light" id="basemap-light" href="__BASEMAP_LIGHT__" x="0" y="0" preserveAspectRatio="none"></image>
+            <image class="basemap-dark" id="basemap-dark" href="__BASEMAP_DARK__" x="0" y="0" preserveAspectRatio="none"></image>
+          </svg>
+          <div class="plates" id="plates"></div>
+          <div class="readout" id="readout" aria-live="polite"></div>
+        </figure>
+        <p class="attr" id="attr"></p>
+      </div>
+      <div class="ledger" id="ledger">
+        <div class="ledger-scroll" id="ledger-scroll">
+          <table>
+            <thead>
+              <tr><th>Leg</th><th>Runner</th><th class="num">Mi</th><th data-col="rating">Rating</th><th>Start</th><th class="num">Split</th><th class="num">Pace</th><th>Track</th></tr>
+            </thead>
+            <tbody id="ledger-body"></tbody>
+          </table>
+        </div>
+        <p class="ledger-foot">Times are <span id="tz-name"></span>. Grey splits are estimates: the gap between surrounding tracks for a leg with no file, or the handoff times a reconstruction was fitted to.</p>
+      </div>
+    </div>
+  </section>
+
+  <section aria-labelledby="chart-h">
+    <div class="section-head">
+      <h2 id="chart-h">Elevation over the race</h2>
+      <ul class="legend">
+        <li><span class="sw sw-track"></span>Recorded elevation (ft)</li>
+        <li><span class="sw sw-recon"></span>Reconstructed</li>
+        <li id="legend-night"><span class="sw sw-night"></span>Sunset to sunrise</li>
+      </ul>
+    </div>
+    <div class="chart-block" data-scope id="chart-block">
+      <p class="chart-readout" id="chart-readout" aria-live="polite"></p>
+      <div class="chart" id="chart"></div>
+    </div>
+  </section>
+
+  <section aria-labelledby="runners-h">
+    <div class="section-head">
+      <h2 id="runners-h">The runners</h2>
+      <p class="note" id="runners-note"></p>
+    </div>
+    <div class="runners-scroll">
+      <table>
+        <thead>
+          <tr><th>Runner</th><th class="num" data-col="van">Van</th><th>Legs</th><th class="num">Mi</th><th class="num">Time</th><th class="num">Pace</th><th class="num" data-col="hm_pace">HM pace</th></tr>
+        </thead>
+        <tbody id="runners-body"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <footer id="footer">
+    <p><strong>Track:</strong> <span id="foot-track"></span></p>
+    <p id="foot-attr"></p>
+  </footer>
+</main>
+
+<script>
+(() => {
+  const D = __DATA__;
+  const NS = "http://www.w3.org/2000/svg";
+  const E = D.event;
+  const TZ = E.timezone;
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  const svgEl = (tag, attrs, parent) => {
+    const e = document.createElementNS(NS, tag);
+    for (const k in attrs) e.setAttribute(k, attrs[k]);
+    if (parent) parent.appendChild(e);
+    return e;
+  };
+  const h = (tag, cls, text) => {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  };
+  const clockFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", minute: "2-digit", timeZone: TZ });
+  const hourFmt = new Intl.DateTimeFormat("en-US", { hour: "numeric", timeZone: TZ });
+  const dayFmt = new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: TZ });
+  const longDayFmt = new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: TZ });
+  const clock = ms => clockFmt.format(ms).replace(/\u202f/g, " ");
+  const day = ms => dayFmt.format(ms);
+  const dur = sec => { const m = Math.round(sec / 60); return `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`; };
+  const pace = (sec, mi) => { const p = Math.round(sec / mi); return `${Math.floor(p / 60)}:${String(p % 60).padStart(2, "0")}`; };
+  const legLabel = legs => legs.length > 1 ? `${legs[0]}-${legs[legs.length - 1]}` : String(legs[0]);
+  const mi = v => Number(v).toFixed(1);
+  const listJoin = arr => arr.length < 2 ? arr.join("") : `${arr.slice(0, -1).join(", ")} and ${arr[arr.length - 1]}`;
+
+  const T0 = Date.parse(D.official.start);
+  const T1 = Date.parse(D.official.finish);
+  const SEG = new Map();
+  for (const s of D.segments) {
+    s.t0 = Date.parse(s.start); s.t1 = Date.parse(s.end); SEG.set(s.key, s);
+    if (s.pieces) s.profile = s.pieces.flatMap(p => p.profile);
+  }
+  const C = D.coverage;
+
+  /* ---------- runner colors ---------- */
+  const RC = new Map(D.runners.map((r, i) => [r.name, `var(--r${i % 13 + 1})`]));
+  const tint = (node, color) => {
+    if (color) { node.classList.add("tint"); node.style.setProperty("--rc", color); }
+    return node;
+  };
+  const runnersOf = s => [...new Set(s.legs.map(n => D.legs[n - 1].runner))];
+  const tintSeg = (node, s) => { const r = runnersOf(s); return tint(node, r.length === 1 ? RC.get(r[0]) : null); };
+  const rdot = name => tint(h("span", "rdot"), RC.get(name));
+  const NIGHTS = D.nights.map(n => [Date.parse(n.sunset), Date.parse(n.sunrise)]);
+  const NL = D.legs.length;
+  const tzName = E.tz_abbr || new Intl.DateTimeFormat("en-US", { timeZone: TZ, timeZoneName: "short" }).formatToParts(T0).find(p => p.type === "timeZoneName").value;
+  const segAt = ms => D.segments.find(s => ms >= s.t0 && ms < s.t1) ||
+    D.segments.reduce((best, s) => { const d = Math.min(Math.abs(ms - s.t0), Math.abs(ms - s.t1)); return d < best.d ? { s, d } : best; }, { s: null, d: Infinity }).s;
+
+  /* ---------- masthead ---------- */
+  const O = D.official;
+  document.getElementById("kicker").textContent = [E.short, E.dates_label].filter(Boolean).join(" | ");
+  document.getElementById("team").textContent = E.team;
+  document.getElementById("strip-start").textContent = E.start_short;
+  document.getElementById("strip-finish").textContent = E.finish_short;
+  document.getElementById("tz-name").textContent = tzName;
+  const ordinal = n => { const s = n % 100 >= 11 && n % 100 <= 13 ? "th" : ({ 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th"); return `${n}${s}`; };
+  document.getElementById("dek").textContent = E.dek ||
+    `${O.runners} runners and ${NL} legs, from ${E.start_name} to ${E.finish_name}.` +
+    [O.bib ? ` Bib ${O.bib}` : "", O.category ? `${O.bib ? "," : ""} ${O.category} division` : "", O.city ? `, out of ${O.city}` : ""].join("") + (O.bib || O.category || O.city ? "." : "");
+  const result = document.getElementById("result");
+  const stat = (label, value, unit, note, cls) => {
+    const wrap = h("div", cls || "");
+    const dd = h("dd");
+    dd.append(value);
+    if (unit) dd.append(" ", h("span", "unit", unit));
+    dd.append(h("small", "", note));
+    wrap.append(h("dt", "label", label), dd);
+    result.append(wrap);
+  };
+  const elapsed = (T1 - T0) / 1000;
+  stat(O.run_time ? "Official time" : "Elapsed", O.run_time ? O.run_time.split(".")[0] : `${Math.floor(elapsed / 3600)}:${String(Math.floor(elapsed % 3600 / 60)).padStart(2, "0")}:${String(Math.round(elapsed % 60)).padStart(2, "0")}`, "", `${O.run_time ? "Gun" : "Start"} at ${clock(T0)} ${day(T0)}, finish ${clock(T1)} ${day(T1)}`);
+  stat("Pace", O.pace || pace(elapsed, C.course_mi), "/mi", O.pace ? `Official${O.source ? `, ${O.source}` : ""}` : "Elapsed time over the course miles");
+  if (O.overall_place) stat("Place", ordinal(O.overall_place), "overall", O.category_place && O.category ? `${ordinal(O.category_place)} of the ${O.category} teams` : "");
+  stat("Tracked", C.gps_mi.toFixed(1), "mi", `GPS across ${C.track_legs} of ${NL} legs, from ${C.files} files`, "tracked");
+
+  /* ---------- course strip ---------- */
+  document.getElementById("course-h").textContent = `${NL} legs, ${mi(C.course_mi)} miles`;
+  const strip = document.getElementById("strip");
+  for (const s of D.segments) {
+    const c = h("div", `cell ${s.kind}${s.partial ? " partial" : ""}${s.recon ? " recon" : ""}${s.part_recon ? " partrecon" : ""}`);
+    c.style.flexGrow = s.official_mi;
+    c.dataset.key = s.key;
+    c.tabIndex = 0;
+    c.setAttribute("role", "listitem");
+    c.setAttribute("aria-label", `Leg ${legLabel(s.legs)}, ${s.legs.map(n => D.legs[n - 1].runner).join(" and ")}, ${mi(s.official_mi)} miles, ${s.kind === "gap" ? "no file" : s.recon ? "reconstructed, not recorded" : s.part_recon ? "GPS track, partly reconstructed" : s.partial ? "partial GPS track" : "GPS track"}`);
+    if (s.partial) c.style.setProperty("--fill", `${Math.round(s.rec_mi / s.official_mi * 100)}%`);
+    if (s.part_recon) c.style.setProperty("--fill", `${Math.round(s.recon_mi / (s.recon_mi + s.rec_mi) * 100)}%`);
+    c.append(h("span", "n", legLabel(s.legs)));
+    tintSeg(c, s);
+    strip.append(c);
+  }
+  const fitStrip = () => strip.querySelectorAll(".cell").forEach(c => {
+    const n = c.firstChild;
+    c.classList.toggle("tight", c.clientWidth < n.offsetWidth + 6);
+  });
+  const partial = D.segments.filter(s => s.partial);
+  const ml = document.getElementById("missing-list");
+  const legsNamed = (nums, one, many) => nums.length === 1 ? `Leg ${nums[0]} ${one}` : `Legs ${listJoin(nums)} ${many}`;
+  ml.append(h("strong", "", C.gap_legs ? `${legsNamed(C.gap_leg_numbers, "has", "have")} no file (${mi(C.gap_official_mi)} mi).` : "Every leg has a file."));
+  if (C.recon_legs) ml.append(` ${legsNamed(C.recon_leg_numbers, "is", "are")} reconstructed from the official course and handoff times (${mi(C.recon_official_mi)} mi), not recorded.`);
+  for (const p of C.part_recon) ml.append(` ${p.where === "middle" ? "Part" : `The ${p.where} ${mi(p.recon_mi)} mi`} of Leg ${legLabel(p.legs)} is reconstructed too.`);
+  if (!C.gap_legs) { document.getElementById("legend-gap").hidden = true; document.getElementById("note-gap").hidden = true; }
+  if (partial.length) ml.append(` Leg ${partial.map(s => legLabel(s.legs)).join(", ")} is partial: ${partial.map(s => `${mi(s.rec_mi)} of ${mi(s.official_mi)} mi`).join(", ")} recorded.`);
+
+  /* ---------- map ---------- */
+  const [vx, vy, vw, vh] = D.view;
+  const map = document.getElementById("map");
+  const mapSvg = document.getElementById("map-svg");
+  mapSvg.setAttribute("viewBox", D.view.join(" "));
+  for (const id of ["basemap-light", "basemap-dark"]) {
+    const im = document.getElementById(id);
+    im.setAttribute("width", D.meta.width);
+    im.setAttribute("height", D.meta.height);
+  }
+  const gGaps = svgEl("g", {}, mapSvg), gHalo = svgEl("g", {}, mapSvg), gRoute = svgEl("g", {}, mapSvg);
+  const gTop = svgEl("g", { class: "top" }, mapSvg), gHit = svgEl("g", {}, mapSvg);
+  const plates = document.getElementById("plates");
+  const place = (node, [x, y]) => { node.style.left = `${(x - vx) / vw * 100}%`; node.style.top = `${(y - vy) / vh * 100}%`; plates.append(node); return node; };
+
+  for (const s of D.segments) {
+    if (s.kind === "gap") {
+      const a = { x1: s.from[0], y1: s.from[1], x2: s.to[0], y2: s.to[1] };
+      svgEl("line", { ...a, class: "gapline", "data-key": s.key }, gGaps);
+      svgEl("line", { ...a, class: "hit", "data-key": s.key }, gHit);
+    } else {
+      for (const piece of s.pieces) {
+        const d = "M" + piece.path.map(p => p.join(" ")).join("L");
+        svgEl("path", { d, class: "halo", "data-key": s.key }, gHalo);
+        tintSeg(svgEl("path", { d, class: piece.recon ? "route recon" : "route", "data-key": s.key }, gRoute), s);
+        svgEl("path", { d, class: "hit", "data-key": s.key }, gHit);
+      }
+    }
+    const p = h("span", `plate ${s.kind}${s.recon ? " recon" : ""}`, legLabel(s.legs));
+    tintSeg(p, s);
+    p.dataset.key = s.key;
+    place(p, s.mid);
+  }
+  const key = document.getElementById("runner-key");
+  let keyVan = null;
+  for (const r of D.runners) {
+    if (E.has_van && r.van !== keyVan) { key.append(h("li", "van", `Van ${r.van}`)); keyVan = r.van; }
+    const li = h("li");
+    li.append(tint(h("span", "sw sw-runner"), RC.get(r.name)), `${r.name} (${r.legs_label})`);
+    key.append(li);
+  }
+
+  const endpoint = (text, pt, below) => {
+    const e = h("span", `endpoint${below ? " below" : ""}`, text);
+    const xp = (pt[0] - vx) / vw;
+    if (xp > 0.7) e.classList.add("to-left");
+    else if (xp < 0.3) e.classList.add("to-right");
+    place(h("span", "pin"), pt);
+    place(e, pt);
+  };
+  endpoint(E.start_label ? `Start | ${E.start_label}` : "Start", D.start, false);
+  endpoint(E.finish_label ? `Finish | ${E.finish_label}` : "Finish", D.finish, true);
+  document.getElementById("attr").textContent = D.meta.attribution;
+  document.getElementById("foot-attr").textContent = `Basemap: ${D.meta.attribution}.`;
+  document.getElementById("foot-track").textContent =
+    `${E.combined_fit}, ${C.files} recordings${C.recon_files ? ` and ${C.recon_files} reconstruction${C.recon_files === 1 ? "" : "s"}` : ""} merged, ${mi(C.gps_mi)} recorded GPS miles. Legs without a file are timed from the gap between tracks.`;
+
+  const readout = document.getElementById("readout");
+  function renderReadout(key) {
+    readout.replaceChildren();
+    if (!key) {
+      readout.append(
+        h("p", "label", "Leg readout"),
+        h("p", "ro-title", `${C.track_legs} of ${NL} legs recorded${C.recon_legs ? `, ${C.recon_legs} reconstructed` : ""}`),
+        h("p", "ro-line", "Hover or tap a leg on the map, the strip, the ledger or the chart."));
+      return;
+    }
+    const s = SEG.get(key);
+    const L = s.legs.map(n => D.legs[n - 1]);
+    const ratings = [...new Set(L.map(l => l.rating).filter(Boolean))].join(" / ");
+    const secs = (s.t1 - s.t0) / 1000;
+    const from = L[0].from_name || (L[0].n === 1 ? E.start_short : `Exchange ${L[0].n - 1}`);
+    const to = L[L.length - 1].to_name || (L[L.length - 1].n === NL ? E.finish_short : `Exchange ${L[L.length - 1].n}`);
+    const who = h("p", "ro-line");
+    runnersOf(s).forEach((n, i) => { if (i) who.append(" and "); who.append(rdot(n), n); });
+    if (L[0].van != null) who.append(` | Van ${L[0].van}`);
+    if (L[0].hm_pace) who.append(` | half-marathon pace ${L[0].hm_pace} /mi`);
+    readout.append(
+      h("p", "label", `${s.legs.length > 1 ? "Legs" : "Leg"} ${legLabel(s.legs)}${ratings ? ` | ${ratings}` : ""}`),
+      h("p", "ro-title", `${from} to ${to}`),
+      who,
+      ...L.filter(l => l.note).map(l => h("p", "ro-line file", `Leg ${l.n}: ${l.note}`)),
+      h("p", "ro-line data", `${mi(s.official_mi)} mi | ${clock(s.t0)}-${clock(s.t1)} ${day(s.t1)}`),
+      h("p", "ro-line data", `${s.kind === "gap" || s.recon ? "~" : ""}${dur(secs)} split | ${pace(secs, s.official_mi)} /mi${E.has_climb ? ` | +${L.reduce((a, l) => a + (l.gain || 0), 0).toLocaleString()} ft -${Math.abs(L.reduce((a, l) => a + (l.loss || 0), 0)).toLocaleString()} ft` : ""}`));
+    if (s.recon) {
+      readout.append(
+        h("p", "ro-line", "Reconstructed from the official course and handoff times. Not a recording, so no heart rate."),
+        h("p", "ro-line file", s.file));
+    } else if (s.kind === "track") {
+      readout.append(
+        h("p", "ro-line", `${mi(s.rec_mi)} mi of GPS${s.part_recon ? `, ${mi(s.recon_mi)} mi reconstructed` : ""}${s.partial ? ` (partial, ${Math.round(s.rec_mi / s.official_mi * 100)}% of the leg)` : ""}${s.avg_hr ? ` | avg heart rate ${s.avg_hr}` : ""}`),
+        h("p", "ro-line file", s.file));
+    } else {
+      readout.append(h("p", "ro-line", "No file. The split is the time between the tracks on either side."));
+    }
+  }
+
+  // nudge overlapping leg plates apart (screen px), keeping each near its leg
+  function relaxPlates() {
+    const nodes = [...plates.querySelectorAll(".plate")].filter(n => n.offsetParent !== null);
+    nodes.forEach(n => { n.style.setProperty("--dx", "0px"); n.style.setProperty("--dy", "0px"); });
+    const items = nodes.map(n => {
+      const r = n.getBoundingClientRect();
+      return { n, cx: r.left + r.width / 2, cy: r.top + r.height / 2, w: r.width, hgt: r.height, dx: 0, dy: 0 };
+    });
+    for (let it = 0; it < 40; it++) {
+      let moved = false;
+      for (let i = 0; i < items.length; i++) {
+        for (let j = i + 1; j < items.length; j++) {
+          const a = items[i], b = items[j];
+          const ax = a.cx + a.dx, ay = a.cy + a.dy, bx = b.cx + b.dx, by = b.cy + b.dy;
+          const ox = (a.w + b.w) / 2 + 2 - Math.abs(ax - bx);
+          const oy = (a.hgt + b.hgt) / 2 + 2 - Math.abs(ay - by);
+          if (ox <= 0 || oy <= 0) continue;
+          moved = true;
+          if (oy < ox) { const d = (ay <= by ? -1 : 1) * oy / 2; a.dy += d; b.dy -= d; }
+          else { const d = (ax <= bx ? -1 : 1) * ox / 2; a.dx += d; b.dx -= d; }
+        }
+      }
+      if (!moved) break;
+    }
+    items.forEach(o => { o.n.style.setProperty("--dx", `${o.dx.toFixed(1)}px`); o.n.style.setProperty("--dy", `${o.dy.toFixed(1)}px`); });
+  }
+
+  /* ---------- ledger ---------- */
+  const tbody = document.getElementById("ledger-body");
+  const ledgerScroll = document.getElementById("ledger-scroll");
+  let lastDay = null;
+  for (const L of D.legs) {
+    const s = SEG.get(L.key);
+    const isFirst = s.legs[0] === L.n;
+    const dayName = longDayFmt.format(s.t0);
+    if (isFirst && dayName !== lastDay) {
+      const tr = h("tr", "day");
+      const td = h("td", "", dayName);
+      td.colSpan = E.has_rating ? 8 : 7;
+      tr.append(td);
+      tbody.append(tr);
+      lastDay = dayName;
+    }
+    const tr = h("tr");
+    tr.dataset.key = L.key;
+    tr.tabIndex = 0;
+    tint(tr, RC.get(L.runner));
+    const who = h("td", "runner");
+    who.append(rdot(L.runner), L.runner);
+    tr.append(h("td", "leg", L.n), who, h("td", "num", L.mi.toFixed(1)));
+    if (E.has_rating) tr.append(h("td", "rating", L.rating));
+    if (isFirst) {
+      const secs = (s.t1 - s.t0) / 1000;
+      const est = s.kind === "gap" || s.recon ? " est" : "";
+      tr.append(h("td", "", clock(s.t0)), h("td", `num${est}`, dur(secs)), h("td", `num${est}`, pace(secs, s.official_mi)));
+    } else {
+      const td = h("td", "with", `One file with leg ${s.legs[0]}`);
+      td.colSpan = 3;
+      tr.append(td);
+    }
+    const chipCls = s.kind === "gap" ? "gap" : s.recon ? "recon" : s.part_recon ? "partrecon" : (s.partial ? "partial" : "track");
+    const td = h("td");
+    td.append(h("span", `chip ${chipCls}`, { gap: "None", recon: "Rebuilt", partrecon: "Part rebuilt", partial: "Partial", track: "GPS" }[chipCls]));
+    tr.append(td);
+    tbody.append(tr);
+  }
+
+  /* ---------- runners ---------- */
+  const runnersBody = document.getElementById("runners-body");
+  for (const r of D.runners) {
+    const est = r.recon_legs.length ? " est" : "";
+    const row = h("tr");
+    const name = h("td", "name");
+    name.append(rdot(r.name), r.name);
+    row.append(name);
+    if (E.has_van) row.append(h("td", "num", r.van ?? ""));
+    row.append(h("td", "legs", r.legs_label), h("td", "num", mi(r.mi)), h("td", `num${est}`, dur(r.secs)), h("td", `num${est}`, pace(r.secs, r.mi)));
+    if (E.has_hm_pace) row.append(h("td", "num hm", r.hm_pace));
+    runnersBody.append(row);
+  }
+  const overrides = D.legs.filter(l => l.runner !== l.plan_runner).map(l => l.n);
+  document.getElementById("runners-note").textContent = `${D.runners.length} runners.` +
+    (overrides.length ? ` ${overrides.length === 1 ? `Leg ${overrides[0]} differs` : `Legs ${listJoin(overrides)} differ`} from the team sheet, following the watch data or the team's corrections.` : "") +
+    (D.runners.some(r => r.recon_legs.length) ? " Grey times include reconstructed legs." : "");
+  for (const col of ["rating", "van", "hm_pace"]) {
+    if (!E[`has_${col}`]) document.querySelectorAll(`th[data-col="${col}"]`).forEach(th => th.remove());
+  }
+
+  /* ---------- footer ---------- */
+  const footer = document.getElementById("footer");
+  for (const line of [...E.footer].reverse()) { const p = h("p"); p.innerHTML = line; footer.prepend(p); }
+  if (NIGHTS.length) document.getElementById("foot-track").after(" Sunset and sunrise calculated for the middle of the course.");
+
+  /* ---------- chart ---------- */
+  const chartBox = document.getElementById("chart");
+  const chartReadout = document.getElementById("chart-readout");
+  const inRace = ms => ms > T0 && ms < T1;
+  const sunEvents = NIGHTS.flatMap(([ss, sr]) => [["sunset", ss], ["sunrise", sr]]).filter(([, ms]) => inRace(ms));
+  const sunNotes = sunEvents.map(([what, ms], i) => `${what} at ${clock(ms)} ${day(ms)}${i === 0 ? " came" : ""} during leg ${legLabel(segAt(ms).legs)}`);
+  const restChartText = sunNotes.length ? listJoin(sunNotes).replace(/^./, c => c.toUpperCase()) + "." : "Hover the chart for the elevation at any moment.";
+  if (NIGHTS.some(([ss, sr]) => ss < T1 && sr > T0)) document.getElementById("chart-h").textContent = "Elevation through the night";
+  else document.getElementById("legend-night").hidden = true;
+  const allFt = D.segments.flatMap(s => s.profile || []).map(p => p[1]);
+  const ftMin = allFt.length ? Math.min(...allFt) : 0, ftMax = allFt.length ? Math.max(...allFt) : 1000;
+  const FT_STEP = ftMax - ftMin > 2500 ? 1000 : ftMax - ftMin > 1000 ? 500 : ftMax - ftMin > 400 ? 200 : 100;
+  const Y0 = Math.floor((ftMin - FT_STEP / 2) / FT_STEP) * FT_STEP, Y1 = Math.ceil((ftMax + FT_STEP / 2) / FT_STEP) * FT_STEP;
+  chartReadout.textContent = restChartText;
+  let chartState = null;
+
+  function nearestSample(prof, mn) {
+    let lo = 0, hi = prof.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (prof[mid][0] < mn) lo = mid; else hi = mid; }
+    return Math.abs(prof[lo][0] - mn) <= Math.abs(prof[hi][0] - mn) ? prof[lo] : prof[hi];
+  }
+
+  function drawChart() {
+    const W = Math.max(300, chartBox.clientWidth);
+    const narrow = W < 620;
+    const H = narrow ? 240 : 290;
+    const m = { l: 48, r: 8, t: 26, b: 64 };
+    const pw = W - m.l - m.r, ph = H - m.t - m.b;
+    const X = ms => m.l + (ms - T0) / (T1 - T0) * pw;
+    const Y = ft => m.t + (1 - (ft - Y0) / (Y1 - Y0)) * ph;
+    chartBox.replaceChildren();
+    const svg = svgEl("svg", { viewBox: `0 0 ${W} ${H}`, width: W, height: H, role: "img",
+      "aria-label": `Recorded elevation in feet against clock time, ${clock(T0)} ${day(T0)} to ${clock(T1)} ${day(T1)}, with night shaded and legs marked below` }, chartBox);
+
+    for (const [ss, sr] of NIGHTS) {
+      if (sr <= T0 || ss >= T1) continue;
+      const ns = X(Math.max(ss, T0)), nr = X(Math.min(sr, T1));
+      svgEl("rect", { x: ns, y: m.t, width: nr - ns, height: ph, class: "night" }, svg);
+      // one label per edge that falls inside the race, as long as the shaded band has room for it
+      const room = (nr - ns) / (inRace(ss) && inRace(sr) ? 2 : 1);
+      const fits = text => room >= text.length * 7 + 12;
+      const ssText = narrow ? "Sunset" : `Sunset ${clock(ss)}`, srText = narrow ? "Sunrise" : `Sunrise ${clock(sr)}`;
+      if (inRace(ss) && fits(ssText)) svgEl("text", { x: ns + 6, y: m.t + 14, class: "night-label" }, svg).textContent = ssText;
+      if (inRace(sr) && fits(srText)) svgEl("text", { x: nr - 6, y: m.t + 14, class: "night-label", "text-anchor": "end" }, svg).textContent = srText;
+    }
+
+    for (let ft = Y0 + FT_STEP; ft < Y1; ft += FT_STEP) {
+      svgEl("line", { x1: m.l, x2: W - m.r, y1: Y(ft), y2: Y(ft), class: "grid" }, svg);
+      svgEl("text", { x: m.l - 8, y: Y(ft) + 4, class: "tick", "text-anchor": "end" }, svg).textContent = ft.toLocaleString();
+    }
+    svgEl("text", { x: m.l - 8, y: m.t - 10, class: "tick", "text-anchor": "end" }, svg).textContent = "ft";
+
+    const base = m.t + ph;
+    for (const s of D.segments) {
+      if (s.kind !== "track") continue;
+      for (const piece of s.pieces) {
+        if (!piece.profile.length) continue;
+        const pts = piece.profile.map(([mn, ft]) => [X(T0 + mn * 60000), Y(Math.max(Y0, Math.min(Y1, ft)))]);
+        const line = "M" + pts.map(p => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join("L");
+        tintSeg(svgEl("path", { d: `${line}L${pts[pts.length - 1][0].toFixed(1)} ${base}L${pts[0][0].toFixed(1)} ${base}Z`, class: piece.recon ? "area recon" : "area", "data-key": s.key }, svg), s);
+        tintSeg(svgEl("path", { d: line, class: piece.recon ? "line recon" : "line", "data-key": s.key }, svg), s);
+      }
+    }
+    svgEl("line", { x1: m.l, x2: W - m.r, y1: base, y2: base, class: "baseline" }, svg);
+
+    const by = base + 6, bh = 18;
+    for (const s of D.segments) {
+      const x0 = X(s.t0), w = Math.max(1, X(s.t1) - x0 - 2);
+      tintSeg(svgEl("rect", { x: x0 + 1, y: by, width: w, height: bh, rx: 2, class: `band-${s.kind}${s.recon ? " recon" : ""}`, "data-key": s.key }, svg), s);
+      const label = legLabel(s.legs);
+      if (w >= label.length * 7 + 5) svgEl("text", { x: x0 + 1 + w / 2, y: by + 13, class: `band-label ${s.kind}${s.recon ? " recon" : ""}`, "text-anchor": "middle" }, svg).textContent = label;
+    }
+
+    const hours = (T1 - T0) / 3600e3;
+    const step = (hours > 48 ? (narrow ? 12 : 6) : hours > 12 ? (narrow ? 6 : 3) : hours > 4 ? (narrow ? 2 : 1) : 0.5) * 3600e3;
+    for (let ms = T0; ms <= T1; ms += step) {
+      const x = X(ms);
+      if (!narrow && x > W - m.r - 100) continue;
+      const hr = step < 3600e3 ? clock(ms) : hourFmt.format(ms).replace(/\u202f/g, " ");
+      const first = ms === T0;
+      const midnight = hourFmt.format(ms).startsWith("12 AM");
+      svgEl("text", { x, y: by + bh + 18, class: "tick", "text-anchor": first ? "start" : "middle" }, svg).textContent = hr;
+      if (first || midnight) svgEl("text", { x, y: by + bh + 33, class: "tick day", "text-anchor": first ? "start" : "middle" }, svg).textContent = day(ms);
+    }
+    svgEl("text", { x: W - m.r, y: by + bh + 18, class: "tick", "text-anchor": "end" }, svg).textContent = narrow ? "" : `Finish ${clock(T1)}`;
+
+    const cross = svgEl("line", { y1: m.t, y2: base, class: "cross", visibility: "hidden" }, svg);
+    const dot = svgEl("circle", { r: 4, class: "cross-dot", visibility: "hidden" }, svg);
+    const overlay = svgEl("rect", { x: m.l, y: m.t, width: pw, height: ph + bh + 6, class: "overlay" }, svg);
+    chartState = { svg, W, X, Y, m, pw, cross, dot };
+
+    const at = e => {
+      const rect = svg.getBoundingClientRect();
+      const px = (e.clientX - rect.left) * (W / rect.width);
+      return T0 + Math.max(0, Math.min(1, (px - m.l) / pw)) * (T1 - T0);
+    };
+    overlay.addEventListener("pointermove", e => {
+      const ms = at(e);
+      const s = segAt(ms);
+      const x = X(ms);
+      cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+      let text = `${clock(ms)} ${day(ms)} | Leg ${legLabel(s.legs)}`;
+      if (s.kind === "track" && s.profile.length) {
+        const [mn, ft] = nearestSample(s.profile, (ms - T0) / 60000);
+        dot.setAttribute("cx", X(T0 + mn * 60000)); dot.setAttribute("cy", Y(ft)); dot.setAttribute("visibility", "visible");
+        text += ` | ${ft.toLocaleString()} ft${s.recon ? " (reconstructed)" : ""}`;
+      } else {
+        dot.setAttribute("visibility", "hidden");
+        text += " | no track";
+      }
+      chartReadout.textContent = text;
+      setActive(s.key, "chart");
+    });
+    overlay.addEventListener("pointerleave", () => {
+      cross.setAttribute("visibility", "hidden"); dot.setAttribute("visibility", "hidden");
+      chartReadout.textContent = restChartText;
+      setActive(null, "chart");
+    });
+    overlay.addEventListener("click", e => {
+      const k = segAt(at(e)).key;
+      pinned = pinned === k ? null : k;
+      setActive(k, "chart");
+    });
+    applyActive();
+  }
+
+  /* ---------- linked highlighting ---------- */
+  let active = null, pinned = null;
+  function applyActive() {
+    document.querySelectorAll(".is-active").forEach(n => n.classList.remove("is-active"));
+    document.querySelectorAll("[data-scope]").forEach(n => n.classList.toggle("has-active", !!active));
+    gTop.replaceChildren();
+    if (!active) return;
+    const s = SEG.get(active);
+    if (s.kind === "track") {
+      for (const src of [gHalo, gRoute]) src.querySelectorAll(`[data-key="${active}"]`).forEach(n => gTop.append(n.cloneNode()));
+    }
+    document.querySelectorAll(`[data-key="${active}"]`).forEach(n => n.classList.add("is-active"));
+  }
+  function scrollLedgerTo(key) {
+    if (ledgerScroll.scrollHeight <= ledgerScroll.clientHeight + 2) return;
+    const row = tbody.querySelector(`tr[data-key="${key}"]`);
+    const d = row.getBoundingClientRect().top - ledgerScroll.getBoundingClientRect().top;
+    if (d < 40 || d > ledgerScroll.clientHeight - 40) {
+      ledgerScroll.scrollTo({ top: ledgerScroll.scrollTop + d - ledgerScroll.clientHeight / 2, behavior: reduceMotion ? "auto" : "smooth" });
+    }
+  }
+  function setActive(key, src) {
+    const next = key ?? pinned;
+    if (next === active) return;
+    active = next;
+    applyActive();
+    renderReadout(active);
+    if (active && src !== "ledger") scrollLedgerTo(active);
+  }
+  function bind(container, src) {
+    const keyOf = t => t.closest ? t.closest("[data-key]")?.dataset.key : undefined;
+    container.addEventListener("pointerover", e => { const k = keyOf(e.target); if (k) setActive(k, src); });
+    container.addEventListener("pointerout", e => { if (!e.relatedTarget || !keyOf(e.relatedTarget) || !container.contains(e.relatedTarget)) setActive(null, src); });
+    container.addEventListener("focusin", e => { const k = keyOf(e.target); if (k) setActive(k, src); });
+    container.addEventListener("focusout", () => setActive(null, src));
+    container.addEventListener("click", e => {
+      const k = keyOf(e.target) ?? null;
+      pinned = k && pinned !== k ? k : null;
+      setActive(k, src);
+    });
+  }
+  bind(mapSvg, "map");
+  bind(strip, "strip");
+  bind(tbody, "ledger");
+
+  /* ---------- layout ---------- */
+  const ledger = document.getElementById("ledger");
+  const wide = matchMedia("(min-width: 941px)");
+  let raf = 0;
+  const layout = () => {
+    cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      fitStrip();
+      relaxPlates();
+      ledger.style.height = wide.matches ? `${map.offsetHeight}px` : "";
+      ledgerScroll.style.maxHeight = wide.matches ? "" : "70vh";
+      if (!chartState || Math.abs(chartState.W - chartBox.clientWidth) > 1) drawChart();
+    });
+  };
+  new ResizeObserver(layout).observe(document.body);
+  renderReadout(null);
+  layout();
+  if (document.fonts) document.fonts.ready.then(() => { fitStrip(); relaxPlates(); });
+})();
+</script>

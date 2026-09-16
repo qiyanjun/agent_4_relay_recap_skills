@@ -1,0 +1,9 @@
+{
+  "name": "relay-recap",
+  "displayName": "Relay Recap",
+  "version": "0.1.0",
+  "description": "Turns a team relay's GPS watch files from many runners into one combined FIT/GPX activity (one lap per leg), a Strava-safe upload copy with description, a shareable route map page with PNG snapshots, and a 3D flythrough video. Rebuilds unrecorded legs and resolves handoff overlaps.",
+  "author": { "name": "Yanjun Qi / Jane" },
+  "license": "MIT",
+  "keywords": ["relay", "running", "fit", "gpx", "strava", "garmin", "map", "flythrough", "maplibre"]
+}

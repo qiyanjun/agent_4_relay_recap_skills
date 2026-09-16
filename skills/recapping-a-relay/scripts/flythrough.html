@@ -1,0 +1,497 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Relay flythrough</title>
+<link rel="stylesheet" href="node_modules/maplibre-gl/dist/maplibre-gl.css">
+<!-- 3D flythrough of a relay: one fixed camera pose per block of legs. Data: scene.json (export_flythrough.py).
+     Driven frame by frame by capture.mjs through window.renderFrame(i); window.frameCount is the total. -->
+<style>
+  html, body { margin: 0; width: 1080px; height: 1920px; overflow: hidden; background: #0d120d; font-family: Helvetica, Arial, sans-serif; }
+  #map { position: absolute; inset: 0; }
+  .maplibregl-ctrl-attrib, .maplibregl-ctrl-logo { display: none !important; }
+  .panel { position: absolute; left: 24px; right: 24px; background: rgba(8, 10, 10, 0.86); border-radius: 10px; color: #ebeeec; }
+  #clock { top: 24px; height: 92px; }
+  #clock .l1 { position: absolute; left: 20px; top: 16px; font-size: 22px; line-height: 28px; white-space: nowrap; display: flex; align-items: center; }
+  #clock .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-sizing: border-box; margin-right: 10px; }
+  #clock .lead { font-weight: 700; margin-right: 10px; }
+  #clock .tag { font-size: 15px; font-weight: 700; color: #969e9b; margin-left: 10px; }
+  #clock .l2 { position: absolute; left: 20px; top: 56px; font-size: 17px; color: #969e9b; white-space: nowrap; }
+  #clock .time { position: absolute; right: 20px; top: 16px; font-size: 22px; line-height: 28px; font-weight: 700; }
+  #clock .time small { font-size: 15px; color: #969e9b; margin-left: 8px; }
+  #legend { bottom: 24px; padding: 16px 20px 12px; }
+  #legend .title { font-size: 22px; font-weight: 700; }
+  #legend .title span { font-size: 18px; font-weight: 400; color: #969e9b; margin-left: 12px; }
+  #legend .grid { display: grid; grid-template-columns: 1fr 1fr; grid-auto-flow: column; grid-template-rows: repeat(7, 32px); column-gap: 12px; margin-top: 8px; }
+  .row { display: flex; align-items: center; padding: 0 8px; border-radius: 6px; color: #afb6b3; }
+  .row.on { background: rgba(255, 255, 255, 0.19); color: #ebeeec; }
+  .sw { position: relative; width: 30px; height: 6px; border-radius: 3px; margin-right: 14px; flex: none; }
+  .sw i { position: absolute; right: -6px; top: -3px; width: 12px; height: 12px; border-radius: 50%; border: 2px solid #fff; box-sizing: border-box; }
+  .name { font-size: 20px; font-weight: 700; width: 172px; flex: none; }
+  .legs { font-size: 17px; color: #969e9b; }
+  #legend .credit { font-size: 14px; line-height: 19px; color: #969e9b; margin-top: 8px; }
+  .ex { display: flex; align-items: center; pointer-events: none; }
+  .ex .exdot { width: 14px; height: 14px; border-radius: 50%; background: #fff; border: 3px solid #101410; box-sizing: border-box; }
+  .ex .exlabel { margin-left: 10px; font: 700 26px Helvetica, Arial, sans-serif; color: #fff; white-space: nowrap;
+    /* a hard ring rather than a blur: over dark forest a soft glow just smears the stroke */
+    text-shadow: -2px -2px 0 #000, 0 -2px 0 #000, 2px -2px 0 #000, 2px 0 0 #000,
+                  2px 2px 0 #000, 0 2px 0 #000, -2px 2px 0 #000, -2px 0 0 #000, 0 0 7px rgba(0, 0, 0, 0.85); }
+  /* place names ride on a plate in the panels' colour: the imagery under them swings from dark forest to bare
+     rock to cloud, and only an opaque backing is legible across all of it */
+  .place { display: flex; align-items: center; pointer-events: none; }
+  .place .pbody { display: flex; align-items: center; padding: 5px 14px 5px 9px; border-radius: 999px;
+    background: rgba(8, 10, 10, 0.78); box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45); }
+  .place .pdot { width: 9px; height: 9px; border-radius: 50%; border: 2px solid #d7ddda; box-sizing: border-box;
+    margin-right: 9px; flex: none; }
+  .place.flip .pbody { flex-direction: row-reverse; padding: 5px 9px 5px 14px; }
+  .place.flip .pdot { margin-right: 0; margin-left: 9px; }
+  .place .ptext { font: 600 19px Helvetica, Arial, sans-serif; color: #ebeeec; white-space: nowrap; }
+  /* a state spans the whole frame, so it reads as spaced-out ink on the land, not as a pin on a point */
+  .place.state .pbody { background: none; box-shadow: none; padding: 0; }
+  .place.state .pdot { display: none; }
+  .place.state .ptext { font: 700 34px Helvetica, Arial, sans-serif; letter-spacing: 7px; color: #e4e9e6;
+    text-shadow: -2px -2px 0 #000, 0 -2px 0 #000, 2px -2px 0 #000, 2px 0 0 #000,
+                  2px 2px 0 #000, 0 2px 0 #000, -2px 2px 0 #000, -2px 0 0 #000, 0 0 12px rgba(0, 0, 0, 0.9); }
+  .runner { width: 24px; height: 24px; border-radius: 50%; border: 4px solid #fff; box-sizing: border-box;
+    box-shadow: 0 0 0 2px #101410, 0 3px 10px rgba(0, 0, 0, 0.6); }
+</style>
+</head>
+<body>
+<div id="map"></div>
+<div id="clock" class="panel">
+  <div class="l1"><span class="dot"></span><span class="lead"></span><span class="who"></span><span class="tag"></span></div>
+  <div class="l2"></div>
+  <div class="time"><span class="tt"></span><small class="tz"></small></div>
+</div>
+<div id="legend" class="panel">
+  <div class="title"></div>
+  <div class="grid"></div>
+  <div class="credit"></div>
+</div>
+<script type="module">
+// maplibre-gl 6 ships only an ES module build
+import * as maplibreModule from "./node_modules/maplibre-gl/dist/maplibre-gl.mjs";
+const maplibregl = maplibreModule.default ?? maplibreModule;
+
+(async () => {
+  // Scene timing (seconds of video) and camera. The camera holds one fixed pose per block of legs; it only
+  // moves during the TRANS seconds between blocks, and during the intro and outro.
+  const D = await (await fetch("scene.json")).json();
+  const OPT = D.options;
+  const W = OPT.width, H = OPT.height;
+  document.documentElement.style.width = document.body.style.width = `${W}px`;
+  document.documentElement.style.height = document.body.style.height = `${H}px`;
+  const FPS = 30, INTRO = 3.0, OUTRO = 3.5, TRANS = 1.5, BASE = OPT.base_s, PER_MI = OPT.per_mi_s;
+  const BLOCK_SIZE = OPT.block_size, PITCH = OPT.pitch, ZOOM_OUT = 0.35;
+
+  // ---------- legend first: its height sets the bottom of the clear band the camera fits each block into ----------
+  const legend = document.getElementById("legend");
+  legend.querySelector(".title").innerHTML = "";
+  legend.querySelector(".title").append(D.team, Object.assign(document.createElement("span"), { textContent: D.event }));
+  legend.querySelector(".credit").textContent = D.credit;
+  legend.querySelector(".grid").style.gridTemplateRows = `repeat(${Math.ceil(D.runners.length / 2)}, 32px)`;
+  const rows = {};
+  for (const r of D.runners) {
+    const row = document.createElement("div");
+    row.className = "row";
+    row.innerHTML = `<span class="sw" style="background:${r.color}"><i style="background:${r.color}"></i></span><span class="name"></span><span class="legs"></span>`;
+    row.querySelector(".name").textContent = r.name;
+    row.querySelector(".legs").textContent = r.legs;
+    legend.querySelector(".grid").append(row);
+    rows[r.name] = row;
+  }
+  const SAFE = { left: 80, right: 80, top: 170, bottom: legend.offsetHeight + 30 };  // clear band between the panels
+
+  // ---------- blocks: BLOCK_SIZE legs each, a short trailing group folded into the one before it ----------
+  const groups = [];
+  for (let i = 0; i < D.legs.length; i += BLOCK_SIZE) groups.push(D.legs.slice(i, i + BLOCK_SIZE));
+  if (groups.length > 1 && groups[groups.length - 1].length < BLOCK_SIZE) groups[groups.length - 2].push(...groups.pop());
+
+  // ---------- timeline: each leg gets BASE + PER_MI * miles, each block boundary gets TRANS ----------
+  let clockT = INTRO;
+  const blocks = [], segs = [], trans = [];
+  groups.forEach((legs, bi) => {
+    const b = { legs, first: legs[0].n, last: legs[legs.length - 1].n, start: clockT, cam: null };
+    for (const L of legs) { segs.push({ L, start: clockT, end: clockT + BASE + PER_MI * L.miles, b }); clockT = segs[segs.length - 1].end; }
+    b.end = clockT;
+    blocks.push(b);
+    if (bi < groups.length - 1) { trans.push({ from: b, to: null, fromLeg: legs[legs.length - 1], start: clockT, end: clockT + TRANS }); clockT += TRANS; }
+  });
+  trans.forEach((t, i) => { t.to = blocks[i + 1]; });
+  const OUTRO_START = clockT, FRAMES = Math.round((clockT + OUTRO) * FPS);
+
+  const T = [], P = [];  // one continuous race-time -> position path across every leg
+  for (const L of D.legs) L.times.forEach((s, k) => { if (!T.length || s > T[T.length - 1]) { T.push(s); P.push(L.coords[k]); } });
+
+  function posAt(sec) {
+    if (sec <= T[0]) return P[0];
+    if (sec >= T[T.length - 1]) return P[P.length - 1];
+    let lo = 0, hi = T.length - 1;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (T[mid] <= sec) lo = mid; else hi = mid; }
+    const f = (sec - T[lo]) / (T[hi] - T[lo]);
+    return [P[lo][0] + f * (P[hi][0] - P[lo][0]), P[lo][1] + f * (P[hi][1] - P[lo][1])];
+  }
+  // Race time holds still through a block transition, so the runner waits at the handoff while the camera moves.
+  function realAt(tau) {
+    const last = D.legs[D.legs.length - 1];
+    if (tau < INTRO) return D.legs[0].times[0];
+    let prevEnd = D.legs[0].times[0];
+    for (const s of segs) {
+      if (tau < s.start) return prevEnd;
+      if (tau < s.end) return s.L.times[0] + (tau - s.start) / (s.end - s.start) * (s.L.times[s.L.times.length - 1] - s.L.times[0]);
+      prevEnd = s.L.times[s.L.times.length - 1];
+    }
+    return last.times[last.times.length - 1];
+  }
+  function legCoordsUntil(L, sec) {
+    const out = [];
+    for (let k = 0; k < L.times.length && L.times[k] <= sec; k++) out.push(L.coords[k]);
+    out.push(posAt(Math.min(sec, L.times[L.times.length - 1])));
+    return out.length > 1 ? out : [L.coords[0], L.coords[0]];
+  }
+  const rad = d => d * Math.PI / 180, deg = r => r * 180 / Math.PI;
+  const wrap = a => ((a % 360) + 540) % 360 - 180;
+  const ease = x => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+  function bearing(a, b) {
+    const y = Math.sin(rad(b[0] - a[0])) * Math.cos(rad(b[1]));
+    const x = Math.cos(rad(a[1])) * Math.sin(rad(b[1])) - Math.sin(rad(a[1])) * Math.cos(rad(b[1])) * Math.cos(rad(b[0] - a[0]));
+    return (deg(Math.atan2(y, x)) + 360) % 360;
+  }
+  const milesBetween = (a, b) => Math.hypot((a[1] - b[1]) * 69, (a[0] - b[0]) * 69 * Math.cos(rad(a[1])));
+  function nearestMi(pl, pts) {
+    let best = Infinity;
+    for (const c of pts) best = Math.min(best, milesBetween([pl.lon, pl.lat], c));
+    return best;
+  }
+  function blend(a, b, k) {
+    return { center: [a.center[0] + (b.center[0] - a.center[0]) * k, a.center[1] + (b.center[1] - a.center[1]) * k],
+             zoom: a.zoom + (b.zoom - a.zoom) * k, pitch: a.pitch + (b.pitch - a.pitch) * k,
+             bearing: (a.bearing + wrap(b.bearing - a.bearing) * k + 360) % 360 };
+  }
+
+  // ---------- map ----------
+  const line = (coords, props = {}) => ({ type: "Feature", properties: props, geometry: { type: "LineString", coordinates: coords } });
+  const fc = features => ({ type: "FeatureCollection", features });
+  const lineLayout = { "line-join": "round", "line-cap": "round" };
+  const bounds = new maplibregl.LngLatBounds();
+  D.legs.forEach(L => L.coords.forEach(c => bounds.extend(c)));
+  const map = new maplibregl.Map({
+    container: "map", interactive: false, attributionControl: false, fadeDuration: 0, maxPitch: 85,
+    canvasContextAttributes: { preserveDrawingBuffer: true, antialias: true },
+    center: bounds.getCenter(), zoom: 9,
+    style: {
+      version: 8,
+      sources: {
+        imagery: { type: "raster", tiles: [D.tiles.imagery], tileSize: 256, maxzoom: 16 },
+        dem: { type: "raster-dem", tiles: [D.tiles.terrain], tileSize: 256, maxzoom: 14, encoding: "terrarium" },
+        course: { type: "geojson", data: line(D.course) },
+        done: { type: "geojson", data: fc([]) },
+        active: { type: "geojson", data: fc([]) },
+      },
+      layers: [
+        { id: "bg", type: "background", paint: { "background-color": "#1d2a1a" } },
+        { id: "imagery", type: "raster", source: "imagery" },
+        { id: "course-casing", type: "line", source: "course", layout: lineLayout, paint: { "line-color": "#101410", "line-width": 6 } },
+        { id: "course", type: "line", source: "course", layout: lineLayout, paint: { "line-color": "#d8d8d8", "line-width": 3 } },
+        { id: "done-casing", type: "line", source: "done", layout: lineLayout, paint: { "line-color": "#101410", "line-width": 10 } },
+        { id: "done", type: "line", source: "done", layout: lineLayout, paint: { "line-color": ["get", "color"], "line-width": 6 } },
+        { id: "active-casing", type: "line", source: "active", layout: lineLayout, paint: { "line-color": "#101410", "line-width": 12 } },
+        { id: "active", type: "line", source: "active", layout: lineLayout, paint: { "line-color": ["get", "color"], "line-width": 7 } },
+      ],
+      // zooming out flattens the perceived relief, so lean on the terrain harder than the follow-camera scene does
+      terrain: { source: "dem", exaggeration: OPT.exaggeration },
+      sky: { "sky-color": "#8fb8e0", "horizon-color": "#dfe9ee", "fog-color": "#dfe9ee",
+             "sky-horizon-blend": 0.6, "horizon-fog-blend": 0.6, "fog-ground-blend": 0.85, "atmosphere-blend": 0.7 },
+    },
+  });
+  await new Promise(resolve => map.on("load", resolve));
+
+  function waitIdle() {
+    return new Promise(resolve => {
+      let finished = false;
+      const done = () => { if (!finished) { finished = true; resolve(); } };
+      map.once("idle", done);
+      setTimeout(done, 10000);
+      map.triggerRepaint();
+    });
+  }
+
+  // ---------- one fixed camera pose per block ----------
+  // cameraForBounds ignores pitch and terrain, so use it only as a starting pose, then measure the block's real
+  // projected box and scale the zoom to the safe band, then back off a little further for breathing room.
+  const CX = (SAFE.left + (W - SAFE.right)) / 2, CY = (SAFE.top + (H - SAFE.bottom)) / 2;
+  const SAFE_W = W - SAFE.left - SAFE.right, SAFE_H = H - SAFE.top - SAFE.bottom;
+  const inside = pts => pts.every(c => {
+    const p = map.project(c);
+    return p.x >= SAFE.left && p.x <= W - SAFE.right && p.y >= SAFE.top && p.y <= H - SAFE.bottom;
+  });
+  function screenBox(pts) {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const c of pts) { const p = map.project(c); x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    return { x0, y0, x1, y1 };
+  }
+  // A pitched camera renders a pitch-0 fit bottom-heavy, so slide the centre until the block sits in the
+  // middle of the safe band. Nonlinear under pitch and terrain, hence a few passes.
+  function recentre(cam, pts) {
+    for (let k = 0; k < 4; k++) {
+      const box = screenBox(pts);
+      const dx = CX - (box.x0 + box.x1) / 2, dy = CY - (box.y0 + box.y1) / 2;
+      if (Math.abs(dx) < 2 && Math.abs(dy) < 2) break;
+      const c = map.unproject([W / 2 - dx, H / 2 - dy]);
+      cam = { ...cam, center: [c.lng, c.lat] };
+      map.jumpTo(cam);
+    }
+    return cam;
+  }
+  // ---------- place labels ----------
+  // At most PLACES_MAX per block. A label only earns its spot if it is genuinely on screen under this block's
+  // fixed camera, so the choice is made by projecting against that camera rather than by distance alone.
+  const PLACES_MAX = 5, PLACES_MAX_MI = 18, PLACE_GAP = 20, PLACE_DY = 38;
+  // A pill hangs off its dot, to the right by default and to the left when that would run off frame. Both boxes
+  // below are estimated from the character count, which is close enough to keep labels off each other.
+  function pillBox(p, name, flip, dy) {
+    const w = name.length * 19 * 0.58 + 46, h = 35;
+    const x0 = flip ? p.x + 14 - w : p.x - 14;
+    return { x0, x1: x0 + w, y0: p.y + dy - h / 2, y1: p.y + dy + h / 2 };
+  }
+  // The leg label is a dot plus text hung to the RIGHT of the leg's start point, never centred on it.
+  function legLabelBox(p, text) {
+    const w = 24 + text.length * 26 * 0.58, h = 36;
+    return { x0: p.x - 7, x1: p.x - 7 + w, y0: p.y - h / 2, y1: p.y + h / 2 };
+  }
+  const hits = (a, b) => a.x0 < b.x1 + PLACE_GAP && b.x0 < a.x1 + PLACE_GAP
+                      && a.y0 < b.y1 + PLACE_GAP && b.y0 < a.y1 + PLACE_GAP;
+  // Towns sit exactly where legs start, so a label that merely collides gets nudged off the clash rather than
+  // dropped - otherwise the most useful names (the one at the start line, say) are the first to be thrown away.
+  const VARIANTS = [];
+  for (const dy of [0, -PLACE_DY, PLACE_DY, -2 * PLACE_DY, 2 * PLACE_DY]) for (const flip of [false, true]) VARIANTS.push({ dy, flip });
+  function pickPlaces(b, blockPts) {
+    const sample = blockPts.filter((_, k) => k % 8 === 0);
+    // the leg label outranks every place name, so reserve the spot it takes on each of this block's legs
+    const taken = b.legs.map(L => legLabelBox(map.project(L.coords[0]), `Leg ${L.n} | ${L.runner}`));
+    const cand = [];
+    for (const pl of D.places) {
+      const d = nearestMi(pl, sample);
+      if (d > PLACES_MAX_MI) continue;  // also throws out anything projected from behind a pitched camera
+      const p = map.project([pl.lon, pl.lat]);
+      if (!isFinite(p.x) || !isFinite(p.y)) continue;
+      cand.push({ pl, p, d });
+    }
+    cand.sort((x, y) => x.pl.tier - y.pl.tier || x.d - y.d);
+    const out = [];
+    for (const c of cand) {
+      if (out.length >= PLACES_MAX) break;
+      for (const v of VARIANTS) {
+        const box = pillBox(c.p, c.pl.name, v.flip, v.dy);
+        if (box.x0 < SAFE.left - 40 || box.x1 > W - SAFE.right + 40) continue;
+        if (box.y0 < SAFE.top || box.y1 > H - SAFE.bottom) continue;
+        if (taken.some(t => hits(t, box))) continue;
+        taken.push(box);
+        out.push({ ...c.pl, flip: v.flip, dy: v.dy });
+        break;
+      }
+    }
+    return out;
+  }
+
+  for (const b of blocks) {
+    const pts = [];
+    for (const L of b.legs) for (const c of L.coords) pts.push(c);
+    const bb = new maplibregl.LngLatBounds();
+    pts.forEach(c => bb.extend(c));
+    const test = pts.filter((_, k) => k % 5 === 0).concat([pts[pts.length - 1]]);
+    const brg = bearing(pts[0], pts[pts.length - 1]);
+    const c0 = map.cameraForBounds(bb, { padding: SAFE, bearing: brg });
+    b.cam = { center: c0.center.toArray(), zoom: c0.zoom, pitch: PITCH, bearing: brg };
+    map.jumpTo(b.cam);
+    await waitIdle();  // load this area's DEM so project() sees real elevation while fitting
+    b.cam = recentre(b.cam, test);
+    for (let k = 0; k < 8; k++) {
+      const box = screenBox(test);
+      const scale = Math.min(SAFE_W / (box.x1 - box.x0), SAFE_H / (box.y1 - box.y0));
+      if (scale > 0.98 && scale < 1.02) break;
+      b.cam = { ...b.cam, zoom: b.cam.zoom + Math.log2(scale) };
+      map.jumpTo(b.cam);
+      b.cam = recentre(b.cam, test);
+    }
+    for (let k = 0; k < 24 && !inside(test); k++) {  // the scaling is nonlinear under pitch; nudge out until it really fits
+      b.cam = { ...b.cam, zoom: b.cam.zoom - 0.05 };
+      map.jumpTo(b.cam);
+      b.cam = recentre(b.cam, test);
+    }
+    b.cam.zoom -= ZOOM_OUT;
+    map.jumpTo(b.cam);
+    await waitIdle();
+    b.places = pickPlaces(b, pts);
+  }
+  const ov = map.cameraForBounds(bounds, { padding: { top: 200, bottom: SAFE.bottom + 40, left: 90, right: 90 }, bearing: 20 });
+  const overview = { center: ov.center.toArray(), zoom: ov.zoom - 0.35, pitch: 45, bearing: 20 };
+
+  // A state name is placed on open ground, not on the route: when a region's share of the course is short,
+  // its midpoint is exactly where the runner stands at the start and the text would be stamped through by it.
+  {
+    map.jumpTo(overview);
+    await waitIdle();
+    const track = D.course.filter((_, k) => k % 20 === 0).map(c => map.project(c));
+    const ring = [[0, 0]];
+    for (const r of [200, 340, 480]) for (const a of [180, 0, 225, 135, 315, 45, 270, 90]) {
+      ring.push([Math.round(r * Math.cos(rad(a))), Math.round(-r * Math.sin(rad(a)))]);
+    }
+    for (const st of D.states) {
+      const p = map.project([st.lon, st.lat]);
+      const w = st.name.length * (34 * 0.62 + 7), h = 46;
+      st.dx = 0; st.dy = 0;
+      for (const [dx, dy] of ring) {
+        const box = { x0: p.x + dx - w / 2, x1: p.x + dx + w / 2, y0: p.y + dy - h / 2, y1: p.y + dy + h / 2 };
+        if (box.x0 < SAFE.left || box.x1 > W - SAFE.right || box.y0 < SAFE.top || box.y1 > H - SAFE.bottom) continue;
+        if (track.some(q => q.x > box.x0 - 24 && q.x < box.x1 + 24 && q.y > box.y0 - 24 && q.y < box.y1 + 24)) continue;
+        st.dx = dx; st.dy = dy;
+        break;
+      }
+    }
+    console.log("state labels: " + D.states.map(st => `${st.name} +(${st.dx}, ${st.dy})`).join(", "));
+  }
+
+  const blockAt = tau => blocks.find(b => tau >= b.start && tau < b.end);
+  const transAt = tau => trans.find(t => tau >= t.start && tau < t.end);
+  function cameraFor(tau) {
+    if (tau < INTRO) return blend(overview, blocks[0].cam, ease(Math.min(1, tau / INTRO)));
+    if (tau >= OUTRO_START) return blend(blocks[blocks.length - 1].cam, overview, ease(Math.min(1, (tau - OUTRO_START) / (OUTRO * 0.8))));
+    const tr = transAt(tau);
+    if (tr) return blend(tr.from.cam, tr.to.cam, ease((tau - tr.start) / (tr.end - tr.start)));
+    return (blockAt(tau) || blocks[blocks.length - 1]).cam;
+  }
+
+  // ---------- markers and panels ----------
+  // One marker per place, its opacity driven per frame. MapLibre owns the root element's opacity for terrain
+  // occlusion, so the fade is applied to an inner element instead of fighting it.
+  // A town can appear in two neighbouring blocks with a different placement in each, so the marker belongs to the
+  // (block, place) pair rather than to the place.
+  const placeBodies = new Map();
+  function addPlaceMarker(id, pl) {
+    const el = document.createElement("div");
+    el.className = "place" + (pl.kind === "state" ? " state" : "") + (pl.flip ? " flip" : "");
+    el.innerHTML = '<div class="pbody"><span class="pdot"></span><span class="ptext"></span></div>';
+    el.querySelector(".ptext").textContent = pl.name;
+    el.style.display = "none";
+    const state = pl.kind === "state";
+    new maplibregl.Marker({ element: el, anchor: state ? "center" : pl.flip ? "right" : "left",
+                            offset: state ? [pl.dx || 0, pl.dy || 0] : [pl.flip ? 14 : -14, pl.dy || 0] })
+      .setLngLat([pl.lon, pl.lat]).addTo(map);
+    placeBodies.set(id, el.querySelector(".pbody"));
+  }
+  blocks.forEach((b, bi) => {
+    b.ids = b.places.map(pl => `b${bi}:${pl.name}`);
+    b.places.forEach((pl, k) => addPlaceMarker(b.ids[k], pl));
+  });
+  const stateIds = D.states.map(pl => `state:${pl.name}`);
+  D.states.forEach((pl, k) => addPlaceMarker(stateIds[k], pl));
+  // Town names belong to a block, so they cross-fade with the camera; the state names belong to the wide shots.
+  function placeWeights(tau) {
+    const w = new Map();
+    const add = (ids, k) => { for (const id of ids) w.set(id, Math.max(w.get(id) || 0, k)); };
+    if (tau < INTRO) {
+      const k = ease(Math.min(1, tau / INTRO));
+      add(stateIds, 1 - k);
+      add(blocks[0].ids, k);
+    } else if (tau >= OUTRO_START) {
+      const k = ease(Math.min(1, (tau - OUTRO_START) / (OUTRO * 0.8)));
+      add(blocks[blocks.length - 1].ids, 1 - k);
+      add(stateIds, k);
+    } else {
+      const tr = transAt(tau);
+      if (tr) {
+        const k = ease((tau - tr.start) / (tr.end - tr.start));
+        add(tr.from.ids, 1 - k);
+        add(tr.to.ids, k);
+      } else {
+        add((blockAt(tau) || blocks[blocks.length - 1]).ids, 1);
+      }
+    }
+    return w;
+  }
+
+  const runnerEl = document.createElement("div");
+  runnerEl.className = "runner";
+  const runnerMarker = new maplibregl.Marker({ element: runnerEl }).setLngLat(P[0]).addTo(map);
+  const labelEl = document.createElement("div");
+  labelEl.className = "ex";
+  labelEl.innerHTML = '<div class="exdot"></div><div class="exlabel"></div>';
+  const labelMarker = new maplibregl.Marker({ element: labelEl, anchor: "left", offset: [-7, 0] }).setLngLat(P[0]).addTo(map);
+
+  const clock = document.getElementById("clock");
+  const $ = sel => clock.querySelector(sel);
+  const fmt = new Intl.DateTimeFormat("en-US", { timeZone: D.timezone, weekday: "short", hour: "numeric", minute: "2-digit" });
+  const tzFmt = new Intl.DateTimeFormat("en-US", { timeZone: D.timezone, timeZoneName: "short" });
+  const tzText = sec => {
+    const known = (D.tz_abbrs || []).filter(([t]) => t <= sec).pop() || (D.tz_abbrs || [])[0];
+    return known ? known[1] : tzFmt.formatToParts(new Date(sec * 1000)).find(p => p.type === "timeZoneName").value;
+  };
+  const clockText = sec => fmt.format(new Date(sec * 1000)).replace(/[  ]/g, " ").replace(",", "");
+  const totalMi = D.legs.reduce((a, L) => a + L.miles, 0).toFixed(1);
+  const legRange = `Legs ${D.legs[0].n}-${D.legs[D.legs.length - 1].n}`;
+
+  let doneKey = null;
+  window.renderFrame = async i => {
+    const tau = i / FPS, real = realAt(tau);
+    const seg = segs.find(s => tau >= s.start && tau < s.end);
+    const tr = transAt(tau);
+    const finished = segs.filter(s => tau >= s.end).map(s => s.L);
+    const key = finished.length;
+    if (key !== doneKey) {
+      map.getSource("done").setData(fc([...D.context.map(c => line(c.coords, { color: c.color })),
+                                        ...finished.map(L => line(L.coords, { color: L.color }))]));
+      doneKey = key;
+    }
+    const cur = seg ? seg.L : null;
+    map.getSource("active").setData(fc(cur ? [line(legCoordsUntil(cur, real), { color: cur.color })] : []));
+
+    // during a block transition the panels stay on the leg that just finished, matching the frozen race clock
+    const info = cur || (tr ? tr.fromLeg : null);
+    const b = (blockAt(tau) || (tr ? tr.from : null) || blocks[0]);
+    const L = info || (tau < INTRO ? D.legs[0] : D.legs[D.legs.length - 1]);
+    runnerEl.style.background = L.color;
+    runnerEl.style.display = tau >= OUTRO_START ? "none" : "block";
+    runnerMarker.setLngLat(posAt(real));
+    labelEl.style.display = info ? "flex" : "none";
+    labelMarker.setLngLat(L.coords[0]);
+    labelEl.querySelector(".exlabel").textContent = `Leg ${L.n} | ${L.runner}`;
+
+    $(".dot").style.background = L.color;
+    if (info) {
+      $(".lead").textContent = `Leg ${L.n}`;
+      $(".who").textContent = L.runner;
+      $(".tag").textContent = L.tag;
+      $(".l2").textContent = [`${L.miles} mi`, L.rating, `${L.pace} /mi`, L.van !== "" ? `Van ${L.van}` : "", `Legs ${b.first}-${b.last}`].filter(Boolean).join(" | ");
+    } else {
+      $(".lead").textContent = tau < INTRO ? D.team : legRange;
+      $(".who").textContent = tau < INTRO ? `${legRange} in 3D` : "finished";
+      $(".tag").textContent = "";
+      $(".l2").textContent = `${D.event} | ${D.legs.length} legs | ${totalMi} mi | ${blocks.length} blocks`;
+    }
+    const weights = placeWeights(tau);
+    for (const [id, body] of placeBodies) {
+      const a = weights.get(id) || 0;
+      body.parentElement.style.display = a > 0.01 ? "flex" : "none";
+      body.style.opacity = a.toFixed(3);
+    }
+
+    $(".tt").textContent = clockText(real);
+    $(".tz").textContent = tzText(real);
+    for (const [name, row] of Object.entries(rows)) row.classList.toggle("on", !!info && name === L.runner);
+
+    map.jumpTo(cameraFor(tau));
+    await waitIdle();
+    await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
+    return true;
+  };
+  window.frameCount = FRAMES;
+  window.sceneReady = true;
+  console.log(`scene ready: ${blocks.length} blocks (${blocks.map(b => `${b.first}-${b.last}`).join(", ")}), `
+            + `${FRAMES} frames, ${(FRAMES / FPS).toFixed(1)} s`);
+  console.log("block zooms: " + blocks.map(b => b.cam.zoom.toFixed(2)).join(", "));
+  for (const b of blocks) console.log(`  legs ${b.first}-${b.last}: ${b.places.map(p => p.name).join(", ") || "(no places)"}`);
+})().catch(e => { window.sceneError = e.message; console.log("scene error: " + e.message); });
+</script>
+</body>
+</html>

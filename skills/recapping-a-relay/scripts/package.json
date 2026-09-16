@@ -1,0 +1,10 @@
+{
+  "name": "relay-recap-node",
+  "private": true,
+  "description": "Headless Chrome capture (route map snapshots, flythrough frames) and the MapLibre 3D scene",
+  "type": "module",
+  "dependencies": {
+    "maplibre-gl": "6.9.1",
+    "puppeteer-core": "25.11.0"
+  }
+}
