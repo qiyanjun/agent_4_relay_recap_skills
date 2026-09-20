@@ -154,6 +154,42 @@ def test_flythrough_scene_exports_without_places(project):
     assert colors[0] == colors[5] and len({colors[0], colors[1], colors[3]}) == 3
 
 
+def test_flythrough_video_options_reach_the_scene(project):
+    """The video look is chosen in event.json, so the options have to survive the export untouched - and a typo in
+    one of the named choices has to fail loudly rather than render 35 minutes of the wrong thing."""
+    path = os.path.join(project["root"], "event.json")
+    event = json.load(open(path))
+    event["flythrough"].update(exchange="firework", opening="tilt", title=True, leg_label_pop=True,
+                               label_scale=1.12, line_scale=1.5, imagery_saturation=0.7,
+                               imagery_brightness_min=0.26, imagery_contrast=-0.08)
+    json.dump(event, open(path, "w"))
+    run("export_flythrough.py", project["root"])
+    o = json.load(open(os.path.join(project["root"], "out", "flythrough", "scene.json")))["options"]
+    assert o["exchange"] == "firework" and o["opening"] == "tilt" and o["leg_label_pop"] is True
+    assert o["label_scale"] == 1.12 and o["line_scale"] == 1.5 and o["imagery_saturation"] == 0.7
+    # the title page is built from event.json: team name one word per line, plus the official result
+    classes = [c for c, _ in o["title_lines"]]
+    assert classes.count("t-team") == len(event["team"].split()) and "t-year" in classes
+    assert any(event["official"]["run_time"] in text for c, text in o["title_lines"] if c == "t-result")
+
+    event["flythrough"]["exchange"] = "sparkles"
+    json.dump(event, open(path, "w"))
+    r = run("export_flythrough.py", project["root"], ok=False)
+    assert "exchange" in r.stderr
+    event["flythrough"]["exchange"] = "firework"  # the project fixture is shared; leave it usable
+    json.dump(event, open(path, "w"))
+
+
+def test_flythrough_title_lines_can_be_given_directly(project):
+    path = os.path.join(project["root"], "event.json")
+    event = json.load(open(path))
+    event["flythrough"]["title"] = [["t-team", "OURS"], ["t-stats", "__LEGS__ legs"]]
+    json.dump(event, open(path, "w"))
+    run("export_flythrough.py", project["root"])
+    o = json.load(open(os.path.join(project["root"], "out", "flythrough", "scene.json")))["options"]
+    assert o["title_lines"] == [["t-team", "OURS"], ["t-stats", "__LEGS__ legs"]]
+
+
 def test_missing_leg_coverage_fails_clearly(tmp_path):
     root = str(tmp_path / "bad")
     make_project(root)

@@ -40,7 +40,7 @@ Empty strings and `null` in `event.json` mean "not given": fill what you know, l
 | `map.title`, `map.description`, `map.dek` | no | override the page title, meta description and intro sentence |
 | `map.footer` | no | list of HTML lines for sources and credits, e.g. `"<strong>Official result:</strong> ..."` |
 | `colors` | no | `{"Runner": "#hex"}` for the flythrough; defaults come from a palette ordered for handoff contrast |
-| `flythrough.*` | no | see flythrough.md |
+| `flythrough.*` | no | video options: `exchange`, `opening`, `title`, `label_scale`, `line_scale`, `music`, imagery colour. See flythrough.md |
 
 ## roster.csv
 
