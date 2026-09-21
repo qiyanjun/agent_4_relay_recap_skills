@@ -30,9 +30,28 @@ Run from any directory; every script takes the project folder. `S` = this skill'
 | 7. Map page | `python3 S/build_map.py P` | `_route_map.html` (one file, ~1 MB) |
 | 8. Snapshots | `node $(bash S/node_setup.sh P)/snapshot_map.mjs out/SLUG_route_map.html out/SLUG_route_map` | `_phone.png`, `_overview.png`, `_map.png` |
 | 9. Share | see "Publishing" below | a private link |
-| 10. Flythrough | `python3 S/geocode_places.py P`, `python3 S/export_flythrough.py P`, `bash S/render_flythrough.sh P preview`, then without `preview` | `_flythrough.mp4` |
+| 10. Flythrough | ask the four questions below, then `python3 S/geocode_places.py P`, `python3 S/export_flythrough.py P`, `bash S/render_flythrough.sh P preview`, then without `preview` | `_flythrough.mp4` |
+| 11. Music | `python3 S/add_music.py P` | `_flythrough_music.mp4`, cover image on both |
 
 Requirements: Python 3 with `fitparse` and `Pillow`; for steps 8 and 10 Node 18+, Chrome and `ffmpeg`.
+
+## Ask before rendering the video
+
+A full render is ~35 minutes and ~17 GB of frames, so settle the look first. Ask these four together, offer the
+recommendation, and write the answers into `event.json`'s `flythrough` block. All four default to off, which gives
+the plain scene.
+
+| Ask | Option | Recommend |
+|---|---|---|
+| Mark each handoff? | `exchange`: `firework`, `baton`, `none` | **`firework`** - a flash, a shockwave ring and 30 sparks in both runners' colours. `baton` streaks along the course through the exchange instead: quieter, more literally a relay. |
+| An opening title page? | `title: true` (+ `title_seconds`, `title_dark`) | **Yes** - the team name, year and official result, built from `event.json`. It also gives the file a first frame worth looking at. |
+| How should it open? | `opening`: `flyin`, `tilt`, `hold` | **`tilt`** with a title page: a flat map tilts up into the first leg. `flyin` is the stock wide-shot zoom - avoid it if another team's video already used it. |
+| Background music? | `music: "song.mp3"` | Ask for a file. Then run `add_music.py`; it trims the track where nobody is singing. |
+
+Also worth offering, without asking each time: `label_scale` 1.1-1.15 and `line_scale` 1.5 make a phone-sized video
+much easier to read, `leg_label_pop: true` gives every leg change a beat, and the imagery can be pushed green (see
+references/flythrough.md). Check the choices on a short clip rather than a full render: `export_flythrough.py P 1-6`
+renders the opening and a few legs.
 
 ## Decisions that need judgment
 
@@ -73,3 +92,6 @@ Details: references/map-and-sharing.md. Flythrough tuning and render cost: refer
 | Uploading `_combined.fit` or several files to Strava | Upload only the Strava copy, once |
 | Editing files in `out/` by hand | They are regenerated; change the config and rerun |
 | Full flythrough render to check framing | Use `preview` first; a full render is ~35 min and ~17 GB of frames for 36 legs |
+| Rendering the whole video to judge the opening | `export_flythrough.py P 1-6` renders the opening and a few legs |
+| A title page whose lines fade up from nothing | Frame 0 is what a player shows unplayed; the page composes on frame 0 by design |
+| `capture.mjs` dies on `"<!DOCTYPE " is not valid JSON` | A stray `http.server` holds the port and 404s; pass another `PORT` |

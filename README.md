@@ -12,6 +12,7 @@ A Claude Code plugin that turns a team relay's GPS watch files, from many runner
 | `<slug>_route_map.html` | Self-contained route map page (map, leg strip, leg table, elevation through the night, runners) |
 | `<slug>_route_map_{phone,overview,map}.png` | Snapshots of that page for group chats and slides |
 | `<slug>_flythrough.mp4` | Vertical 3D flythrough over satellite imagery and terrain, leg by leg |
+| `<slug>_flythrough_music.mp4` | The same video with a background track and a cover image |
 
 It also rebuilds legs nobody recorded (OpenStreetMap routing, DEM elevation, grade-adjusted timing, clearly
 labeled), trims handoff overlaps, splits one watch covering two legs, and handles a teammate running along.
@@ -50,6 +51,7 @@ Example requests:
 - "Legs 7 and 18 weren't recorded; rebuild them from the course."
 - "Build the route map page and publish it as a private link." / "Make PNG snapshots of the map for our group chat."
 - "Render the 3D flythrough video, preview first."
+- "Put a title page on the video, mark the handoffs with fireworks, and add this song."
 
 What Claude will do and ask you for:
 
@@ -63,6 +65,20 @@ What Claude will do and ask you for:
 
 Upload only `<slug>_combined_strava.fit` to Strava, with privacy "Only You" and type Other. Details of every option
 are in `skills/recapping-a-relay/references/`.
+
+## Choosing how the video looks
+
+Set these in `event.json`'s `flythrough` block; all default to off, which gives the plain scene. See
+`references/flythrough.md`.
+
+| Option | What it does |
+|---|---|
+| `exchange` | `firework` or `baton` marks every handoff in the two runners' colours |
+| `title` | an opening page with the team name, year and official result, built from `event.json` |
+| `opening` | `flyin` (stock wide-shot zoom), `tilt` (a flat map tilting up), or `hold` |
+| `music` | a track for `add_music.py`, trimmed where nobody is singing |
+| `label_scale`, `line_scale` | bigger labels and thicker route lines, for phone-sized viewing |
+| `imagery_saturation`, `imagery_brightness_min`, `imagery_contrast` | recolour the satellite tiles |
 
 ## Requirements
 
@@ -84,6 +100,7 @@ python3 $S/build_map.py my_relay
 node "$(bash $S/node_setup.sh my_relay)/snapshot_map.mjs" my_relay/out/RELAY_2026_route_map.html my_relay/out/RELAY_2026_route_map
 python3 $S/geocode_places.py my_relay && python3 $S/export_flythrough.py my_relay
 bash $S/render_flythrough.sh my_relay preview   # then without "preview" for the full video
+python3 $S/add_music.py my_relay                # optional: background track + cover image
 ```
 
 Config reference: `skills/recapping-a-relay/references/project-setup.md`.

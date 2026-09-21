@@ -13,6 +13,17 @@ event.json "flythrough" options (all optional):
   exaggeration   terrain exaggeration (default 1.8)
   base_s, per_mi_s   seconds per leg = base_s + per_mi_s * miles (defaults 3.0 and 0.35)
   width, height  video size in px (default 1080x1920, vertical)
+  exchange       what marks each handoff: "firework", "baton" or "none" (default)
+  opening        "flyin" (default, a wide shot easing in), "tilt" (a flat map tilting up), "hold" (no camera move)
+  title          true for an opening title page built from event.json, or a list of [class, text] lines of your own
+  title_seconds  how long the opening runs when it carries a title (default 6.9)
+  title_dark     true for a near-black title page instead of the blue sky gradient
+  leg_label_pop  true to make the "Leg N | Runner" label pop in as each leg begins
+  label_scale    multiplies every label's size, 1 is the design size (try 1.1 for a phone)
+  line_scale     multiplies the route line widths and the runner dot
+  imagery_saturation / imagery_brightness_min / imagery_contrast
+                 recolour the satellite tiles; 0 leaves them untouched. Saturation up to about 0.7 with the
+                 shadows lifted 0.25 gives a vivid green; past 0.85 it goes neon and bare ground turns orange.
 Legs before the selected range are drawn as finished context.
 """
 import json, math, os, sys
@@ -118,8 +129,39 @@ for L in legs:
         if abbr != last:
             tz_abbrs.append([t, abbr])
             last = abbr
-options = dict(block_size=5, pitch=50, exaggeration=1.8, base_s=3.0, per_mi_s=0.35, width=1080, height=1920)
+options = dict(block_size=5, pitch=50, exaggeration=1.8, base_s=3.0, per_mi_s=0.35, width=1080, height=1920,
+               exchange="none", opening="flyin", title_seconds=6.9, title_dark=False, leg_label_pop=False,
+               label_scale=1.0, line_scale=1.0,
+               imagery_saturation=0, imagery_brightness_min=0, imagery_contrast=0)
 options.update({k: v for k, v in (P.opt("flythrough", default={}) or {}).items() if k in options})
+if options["exchange"] not in ("none", "baton", "firework"):
+    die('flythrough.exchange must be "firework", "baton" or "none"')
+if options["opening"] not in ("flyin", "tilt", "hold"):
+    die('flythrough.opening must be "flyin", "tilt" or "hold"')
+
+# The opening title page. "title": true builds it from event.json; a list of [class, text] rows replaces it. The
+# classes the page styles are t-kicker, t-year, t-team (one per word, sized to the frame), t-rule, t-stats and
+# t-result; __LEGS__, __MILES__ and __RUNNERS__ are filled in from the scene.
+title = P.opt("flythrough", "title", default=False)
+if isinstance(title, list):
+    options["title_lines"] = title
+elif title:
+    off = P.opt("official", default={}) or {}
+    place = ""
+    if off.get("category_place") and off.get("category"):
+        nth = {1: "st", 2: "nd", 3: "rd"}.get(off["category_place"] % 10 if off["category_place"] % 100 not in (11, 12, 13) else 0, "th")
+        place = f"{off['category_place']}{nth} {off['category']}"
+    year = next((w for w in str(P.event["event"]).split() if w.isdigit() and len(w) == 4), "")
+    lines = [["t-kicker", str(P.event.get("event_short", "")).upper()]] if P.event.get("event_short") else []
+    if year:
+        lines.append(["t-year", year])
+    lines += [["t-team", w] for w in P.event["team"].upper().split()]
+    lines.append(["t-rule", ""])
+    lines.append(["t-stats", "__LEGS__ legs | __MILES__ miles | __RUNNERS__ runners"])
+    result = " | ".join(x for x in (off.get("run_time"), f"{off['pace']} /mi" if off.get("pace") else "", place) if x)
+    if result:
+        lines.append(["t-result", result])
+    options["title_lines"] = lines
 work = os.path.join(P.out, "flythrough")
 os.makedirs(work, exist_ok=True)
 out = os.path.join(work, "scene.json")
