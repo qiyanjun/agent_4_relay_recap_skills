@@ -1,0 +1,225 @@
+{
+  "model": "claude-opus-5-5",
+  "runs": 3,
+  "mode": "installed setup",
+  "passed": 12,
+  "total": 12,
+  "cases": [
+    {
+      "id": "relay-01",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "Our 12-person Ragnar team just finished. I have a folder of FIT files from everyone's Garmins (./ragnar_fits/). Can you stitch them into one activity for the whole relay?"
+    },
+    {
+      "id": "relay-02",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "Hood to Coast recap: I've got GPX exports from 9 of our 12 runners, three legs never got recorded because watches died. I want one continuous track with the missing legs filled in somehow."
+    },
+    {
+      "id": "relay-03",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "two of my teammates' watches overlap by like 40 minutes on leg 14 of our relay (one of them paced the other). how do I merge all the legs into a single file without double counting?"
+    },
+    {
+      "id": "relay-04",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "I want to upload our whole team's 200-mile relay as one Strava activity. Files are a mix of Coros .fit and Strava GPX downloads in ./legs. What's the safest way to combine and upload it?"
+    },
+    {
+      "id": "relay-05",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "Make a shareable route map page for our relay team showing every leg colored by runner, built from the watch files in ./tracks/, with a phone-sized PNG I can drop in the group chat."
+    },
+    {
+      "id": "relay-06",
+      "expect": [
+        "recapping-a-relay"
+      ],
+      "picks": {
+        "recapping-a-relay": 3
+      },
+      "majority": "recapping-a-relay",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay",
+        "relay-recap:recapping-a-relay"
+      ],
+      "query": "Can you turn our ekiden team's GPS files into one of those 3D flythrough videos of the course, with a little animation at every baton handoff?"
+    },
+    {
+      "id": "neg-01",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "Here's my GPX from this morning's half marathon (run.gpx). What were my mile splits and where did my pace fall off?"
+    },
+    {
+      "id": "neg-02",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "Write me a 16-week marathon training plan to go from a 4:10 to sub-3:45, running 5 days a week."
+    },
+    {
+      "id": "neg-03",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "I have a 20-minute GoPro video of our team relay race. Cut it into five vertical 30-second YouTube Shorts with captions."
+    },
+    {
+      "id": "neg-04",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "Build an Excel sheet of our relay team's split times per leg with a running total and average pace per runner. I'll paste the times from the results page."
+    },
+    {
+      "id": "neg-05",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "Draft this month's running club newsletter: welcome new members, recap the relay we ran last weekend, and announce the Thursday track sessions."
+    },
+    {
+      "id": "neg-06",
+      "expect": [
+        "none"
+      ],
+      "picks": {
+        "none": 3
+      },
+      "majority": "none",
+      "agreement": "3/3",
+      "pass": true,
+      "raw": [
+        "answered without a skill",
+        "answered without a skill",
+        "answered without a skill"
+      ],
+      "query": "My Garmin FIT file shows heart rate spikes to 220 during an easy run. Is that a sensor glitch, and how can I clean it out of the file?"
+    }
+  ]
+}
