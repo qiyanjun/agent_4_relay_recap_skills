@@ -113,15 +113,21 @@ skills/recapping-a-relay/
   SKILL.md               when to use, pipeline, judgment calls, publishing
   references/            project-setup, data-decisions, map-and-sharing, flythrough
   scripts/               relaylib.py (shared), one script per step, map_template.html, flythrough.html, Node capture tools
-tests/                   synthetic end-to-end tests (made-up relay, no personal data), plugin validator
+tests/                   synthetic end-to-end tests (made-up relay, no personal data), plugin validator, routing-eval runner
+evals/                   routing.json (made-up queries that should / should not fire the skill), results/
+.github/workflows/       CI: validator + tests on every push and pull request
 ```
 
 ## Tests
 
 ```
 python3 -m pytest tests/ -q          # synthetic 6-leg relay, offline (the map render test needs Node packages)
-python3 tests/validate_plugin.py     # manifests, skill metadata, scripts
+python3 tests/validate_plugin.py     # manifests, skill metadata, doc paths, scripts (strict YAML: needs pyyaml)
+python3 tests/run_trigger_evals.py --workers 3              # does Claude pick the skill? plugin-only, not in CI
+python3 tests/run_trigger_evals.py --workers 3 --installed  # same, against your installed plugins (collisions)
 ```
+
+The routing evals need a logged-in `claude` CLI and cost one short model call per query per run.
 
 The synthetic relay (`tests/synthetic.py`) exercises every combining rule: a watch running past the handoff, an
 early-started watch standing at the exchange, one watch for two legs, a rebuilt leg, a teammate running along, a
