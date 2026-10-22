@@ -5,7 +5,7 @@ The snapshot test needs Node packages and Chrome: it uses $RELAY_RECAP_NODE_DIR 
 node_modules with puppeteer-core, e.g. from `bash skills/recapping-a-relay/scripts/node_setup.sh <project>`), and is
 skipped otherwise.
 """
-import csv, json, os, re, subprocess, sys
+import csv, json, os, re, shutil, subprocess, sys
 from datetime import datetime, timedelta
 import pytest
 
@@ -188,6 +188,36 @@ def test_flythrough_title_lines_can_be_given_directly(project):
     run("export_flythrough.py", project["root"])
     o = json.load(open(os.path.join(project["root"], "out", "flythrough", "scene.json")))["options"]
     assert o["title_lines"] == [["t-team", "OURS"], ["t-stats", "__LEGS__ legs"]]
+
+
+def test_flythrough_export_prints_who_runs_each_leg(project):
+    """Runner names are burned into the frames, so the export lists them for the team to confirm before a render."""
+    r = run("export_flythrough.py", project["root"])
+    assert "confirm with the team before rendering" in r.stdout
+    roster = {int(x["leg"]): x["runner"] for x in csv.DictReader(open(os.path.join(project["root"], "roster.csv")))}
+    for n, name in roster.items():
+        assert re.search(rf"leg +{n} +{re.escape(name)}", r.stdout)
+
+
+@pytest.mark.skipif(not all(map(shutil.which, ("ffmpeg", "ffprobe"))), reason="needs ffmpeg")
+def test_music_start_from_event_json_overrides_end_anchoring(tmp_path):
+    root = str(tmp_path / "music")
+    make_project(root)
+    os.makedirs(os.path.join(root, "out"), exist_ok=True)
+    slug = json.load(open(os.path.join(root, "event.json")))["slug"]
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=64x64:d=3", "-r", "30",
+                    "-pix_fmt", "yuv420p", os.path.join(root, "out", f"{slug}_flythrough.mp4")], check=True)
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", "sine=f=440:d=10",
+                    os.path.join(root, "song.mp3")], check=True)
+    path = os.path.join(root, "event.json")
+    event = json.load(open(path))
+    event.setdefault("flythrough", {})["music"] = "song.mp3"
+    json.dump(event, open(path, "w"))
+    # default: anchored on the track's end, so the start is well into the 10 s tone
+    assert float(re.search(r"using ([\d.]+)-", run("add_music.py", root, "--poster", "1").stdout).group(1)) > 5
+    event["flythrough"]["music_start"] = 0
+    json.dump(event, open(path, "w"))
+    assert "using 0.0-3.0s" in run("add_music.py", root, "--poster", "1").stdout
 
 
 def test_missing_leg_coverage_fails_clearly(tmp_path):

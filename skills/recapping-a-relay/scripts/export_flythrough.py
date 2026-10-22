@@ -172,3 +172,12 @@ json.dump(dict(selected=SELECTED, legs=legs, context=context, course=course, run
 print(f"{out}: legs {SELECTED[0]}-{SELECTED[-1]} ({sum(len(L['coords']) for L in legs)} points), "
       f"{len(context)} context legs, course {len(course)} points, {len(places)} places, "
       f"{len(states)} region labels, {os.path.getsize(out) // 1024} KB")
+# Names are burned into every frame, so a wrong runner costs a whole re-render. Print who runs each leg in this
+# scene for the team to confirm before rendering.
+print("\nwho runs each leg in this video - confirm with the team before rendering:")
+for L in legs:
+    ro = roster[L["n"]]
+    plan = (ro.get("plan_runner") or "").strip()
+    extra = f"  (planned {plan})" if plan and plan != L["runner"] else ""
+    note = (ro.get("note") or "").strip()
+    print(f"  leg {L['n']:>2}  {L['runner']}{extra}{'  - ' + note if note else ''}")

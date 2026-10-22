@@ -1,7 +1,10 @@
 """Lay a background track over the finished flythrough, and give both files a cover image.
 
-Usage: python3 add_music.py <project_dir> [--music FILE] [--poster SECONDS] [--volume 1.0]
-Reads event.json's "flythrough": {"music": "song.mp3"} (relative to the project) unless --music is given.
+Usage: python3 add_music.py <project_dir> [--music FILE] [--start SECONDS] [--poster SECONDS] [--volume 1.0]
+Reads event.json's "flythrough": {"music": "song.mp3", "music_start": 0} (relative to the project) unless --music
+is given. Without a music_start the track is anchored on its end, as below; "music_start": 0 plays it from its
+beginning and lets the end fall wherever the video stops. Ask which the team wants: a team song is often wanted
+from its first bar.
 Writes out/<slug>_flythrough_music.mp4 beside the silent out/<slug>_flythrough.mp4.
 
 Two things this gets right, both of which are easy to get wrong by hand:
@@ -31,7 +34,8 @@ ap.add_argument("--poster", type=float, default=2.7, help="seconds to take the c
 ap.add_argument("--volume", type=float, default=1.0)
 ap.add_argument("--fade-in", type=float, default=1.5)
 ap.add_argument("--fade-out", type=float, default=2.0)
-ap.add_argument("--start", type=float, help="force the track's start offset instead of anchoring on its end")
+ap.add_argument("--start", type=float, help="the track's start offset (0 = from its beginning); default "
+                "event.json flythrough.music_start, else anchored on the track's end")
 a = ap.parse_args()
 
 P = Project(a.project)
@@ -78,6 +82,8 @@ def last_audible(path, window=0.5, floor_db=-35):
 
 dur, track = probe(video), probe(music)
 end = last_audible(music)
+if a.start is None and P.opt("flythrough", "music_start") is not None:
+    a.start = float(P.opt("flythrough", "music_start"))
 start = a.start if a.start is not None else max(0.0, round(end - dur, 3))
 if a.start is None and end - dur < 0:
     print(f"note: the track's {end:.1f} s of sound is shorter than the {dur:.1f} s video; "
@@ -90,7 +96,7 @@ fade_out_at = max(0.0, dur - a.fade_out)
 subprocess.run(["ffmpeg", "-v", "error", "-stats", "-y", "-i", video, "-i", music, "-filter_complex",
                 f"[1:a]apad,atrim={start}:{round(start + dur, 3)},asetpts=N/SR/TB,volume={a.volume},"
                 f"afade=t=in:st=0:d={a.fade_in},afade=t=out:st={fade_out_at}:d={a.fade_out}[a]",
-                "-map", "0:v", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                "-map", "0:V", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
                 "-shortest", "-movflags", "+faststart", out], check=True)
 
 
@@ -98,9 +104,10 @@ def set_poster(path, at):
     """Attach the frame at `at` as MP4 cover art, stream-copying everything else."""
     with tempfile.TemporaryDirectory() as tmp:
         png, mp4 = os.path.join(tmp, "poster.png"), os.path.join(tmp, "out.mp4")
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(at), "-i", path,
+        # 0:V is the video proper, never a cover image an earlier run attached, so this step can be rerun
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-ss", str(at), "-i", path, "-map", "0:V:0",
                         "-frames:v", "1", "-update", "1", png], check=True)
-        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-i", png, "-map", "0", "-map", "1",
+        subprocess.run(["ffmpeg", "-v", "error", "-y", "-i", path, "-i", png, "-map", "0:V", "-map", "0:a?", "-map", "1",
                         "-c", "copy", "-c:v:1", "png", "-disposition:v:1", "attached_pic",
                         "-movflags", "+faststart", mp4], check=True)
         shutil.move(mp4, path)

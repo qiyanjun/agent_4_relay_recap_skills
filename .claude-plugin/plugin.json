@@ -1,7 +1,7 @@
 {
   "name": "relay-recap",
   "displayName": "Relay Recap",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Turns a team relay's GPS watch files from many runners into one combined FIT/GPX activity (one lap per leg), a Strava-safe upload copy with description, a shareable route map page with PNG snapshots, and a 3D flythrough video with an optional title page, handoff animations and background music. Rebuilds unrecorded legs and resolves handoff overlaps.",
   "author": { "name": "Yanjun Qi" },
   "license": "MIT",

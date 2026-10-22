@@ -741,6 +741,28 @@ const maplibregl = maplibreModule.default ?? maplibreModule;
     await new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)));
     return true;
   };
+  // ---------- the timeline, for anyone editing the finished video later ----------
+  // Every leg's on-screen span and every handoff's moment and pixel, so an overlay, a side-by-side or a music cue
+  // never has to recover them from the frames. A handoff's pixel is under the incoming leg's block camera, which
+  // is where the exchange animation fires.
+  const r2 = x => Math.round(x * 100) / 100;
+  const timeline = {
+    fps: FPS, frames: FRAMES, duration_s: r2(FRAMES / FPS), width: W, height: H,
+    intro_end_s: r2(INTRO), outro_start_s: r2(OUTRO_START), exchange: EXCHANGE,
+    blocks: blocks.map(b => ({ legs: [b.first, b.last], start_s: r2(b.start), end_s: r2(b.end) })),
+    legs: segs.map(s => ({ leg: s.L.n, runner: s.L.runner, color: s.L.color, start_s: r2(s.start), end_s: r2(s.end),
+                           start_frame: Math.round(s.start * FPS), end_frame: Math.round(s.end * FPS) })),
+    handoffs: [],
+  };
+  for (let i = 1; i < segs.length; i++) {
+    const sg = segs[i];
+    map.jumpTo(sg.b.cam);
+    const p = map.project(sg.L.coords[0]);
+    timeline.handoffs.push({ from_leg: segs[i - 1].L.n, to_leg: sg.L.n, from_runner: segs[i - 1].L.runner,
+                             to_runner: sg.L.runner, t_s: r2(sg.start), frame: Math.round(sg.start * FPS),
+                             x: Math.round(p.x), y: Math.round(p.y) });
+  }
+  window.timeline = timeline;
   window.frameCount = FRAMES;
   window.sceneReady = true;
   console.log(`scene ready: ${blocks.length} blocks (${blocks.map(b => `${b.first}-${b.last}`).join(", ")}), `

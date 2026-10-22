@@ -1,6 +1,7 @@
 // Capture the flythrough page frame by frame with headless Chrome.
 // Usage: node capture.mjs <page_url> <frames_dir> [step]   (step > 1 captures every Nth frame, for a quick preview)
-// The page must set window.sceneReady (or window.sceneError), window.frameCount and window.renderFrame(i).
+// The page must set window.sceneReady (or window.sceneError), window.frameCount and window.renderFrame(i);
+// window.timeline, if set, is written to <frames_dir>/timeline.json.
 import puppeteer from "puppeteer-core";
 import fs from "node:fs";
 import { chromePath } from "./chrome.mjs";
@@ -30,6 +31,8 @@ try {
   const sceneError = await page.evaluate("window.sceneError");
   if (sceneError) throw new Error(`scene failed to load: ${sceneError}`);
   const frames = await page.evaluate("window.frameCount");
+  const timeline = await page.evaluate("window.timeline || null");
+  if (timeline) fs.writeFileSync(`${outDir}/timeline.json`, JSON.stringify(timeline, null, 1));
   const started = Date.now();
   let shot = 0;
   for (let i = 0; i < frames; i += step) {

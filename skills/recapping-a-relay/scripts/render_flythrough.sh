@@ -4,7 +4,7 @@
 #
 # Usage: bash render_flythrough.sh <project_dir> [preview]
 #   preview  capture every PREVIEW_STEP'th frame (default 30, i.e. one per second of video) for a fast framing check
-# Output: out/<slug>_flythrough.mp4 (or out/<slug>_flythrough_preview.mp4)
+# Output: out/<slug>_flythrough.mp4 (or out/<slug>_flythrough_preview.mp4), plus a _timeline.json beside it
 # Env: PORT=8765  CRF=22  PREVIEW_STEP=30  CHROME=/path/to/chrome  FRAMES_DIR=dir (kept)  KEEP=1 (keep temp frames)
 # A full render of a 36-leg relay is ~5800 frames: roughly 35 min and 17 GB of PNGs before encoding. The imagery and
 # terrain tiles stream from the network while capturing.
@@ -25,7 +25,7 @@ ln -sfn "$NODE_DIR/node_modules" "$WORK/node_modules"
 PORT="${PORT:-8765}"
 CRF="${CRF:-22}"
 if [[ "${2:-}" == preview ]]; then
-  STEP="${PREVIEW_STEP:-30}"; OUT="$OUTDIR/${SLUG}_flythrough_preview.mp4"; RATE=$(( 30 / STEP > 0 ? 30 / STEP : 1 ))
+  STEP="${PREVIEW_STEP:-30}"; OUT="$OUTDIR/${SLUG}_flythrough_preview.mp4"; RATE="30/$STEP"  # same running time as the full video
 else
   STEP=1; OUT="$OUTDIR/${SLUG}_flythrough.mp4"; RATE=30
 fi
@@ -58,7 +58,14 @@ cleanup() {
 trap cleanup EXIT
 
 echo "flythrough -> $OUT (every ${STEP} frame(s), frames in $FRAMES_DIR)"
+rm -f "$FRAMES_DIR/timeline.json"
 node "$NODE_DIR/capture.mjs" "http://127.0.0.1:$PORT/index.html" "$FRAMES_DIR" "$STEP"
 ffmpeg -v error -stats -y -framerate "$RATE" -i "$FRAMES_DIR/f_%05d.png" \
   -c:v libx264 -crf "$CRF" -preset medium -pix_fmt yuv420p -movflags +faststart "$OUT"
 echo "$OUT: $(du -h "$OUT" | cut -f1), $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT" | cut -d. -f1) s"
+# Leg spans and handoff times and pixels, so later edits never have to find them in the frames. A preview runs on
+# the same clock as the full video, so its timeline holds for both.
+if [[ -f "$FRAMES_DIR/timeline.json" ]]; then
+  TL="${OUT%.mp4}_timeline.json"
+  cp "$FRAMES_DIR/timeline.json" "$TL" && echo "$TL"
+fi

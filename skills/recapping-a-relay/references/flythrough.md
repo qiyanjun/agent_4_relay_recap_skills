@@ -30,15 +30,38 @@ A vertical (1080x1920) MapLibre scene over satellite imagery and terrain, captur
    with earlier legs drawn as context.
 3. `bash render_flythrough.sh P preview` - one frame per second of video (about a minute of work). Look at the
    printed block zooms and place picks and at the preview video before committing to a full render.
+   `export_flythrough.py` ends by listing who runs each leg; confirm it with the team before the full render.
 4. `bash render_flythrough.sh P` - the full video. For 36 legs: ~5800 frames, ~35 minutes, ~17 GB of temporary PNGs
    (set `FRAMES_DIR` to a disk with room). Tiles stream from the network during capture.
 5. `python3 add_music.py P` - optional: lays the background track over it and sets both files' cover image.
+
+Every render also writes `_flythrough_timeline.json` (or `_flythrough_preview_timeline.json`) beside the video:
+`fps`, `frames`, `duration_s`, `intro_end_s`, `outro_start_s`; `blocks` (legs, start and end seconds); `legs`
+(leg, runner, colour, start and end in seconds and frames); and `handoffs` (from and to leg and runner, the time
+and frame the incoming leg starts, and the exchange point's `x`/`y` pixel under that block's fixed camera, which is
+where the firework or baton fires). The music copy has the same timing.
 
 Env: `PORT` (default 8765; pick another if busy), `CHROME`, `CRF` (quality, default 22), `KEEP=1`.
 
 A stray `python3 -m http.server` left on the port from an earlier run answers `/` with a 404 rather than refusing
 the connection, so the "port in use" check reads it as free and the render then fetches `scene.json` from the wrong
 server. If `capture.mjs` dies on `"<!DOCTYPE " is not valid JSON`, that is what happened: pass another `PORT`.
+
+## Editing a finished video
+
+Asked to add something to a video that is already rendered (fireworks, music, a caption, a side-by-side with
+another video), in this order:
+
+1. **If the project still has its config, change `event.json` and re-render** - `exchange`, `title`, `music`,
+   `music_start` are all options. Everything then lines up with the map, clock and legend by construction.
+2. **Otherwise read the timeline file** for every leg's span and every handoff's moment and pixel. Do not detect
+   handoffs from the frames: on a real 36-leg video that went wrong several ways at once (a handoff off by a whole
+   leg, a header offset counted twice, bursts on the wrong spot).
+3. **A video with no timeline** (an older render, another app's export): detect from the frames as a last resort,
+   then check every handoff on a contact sheet of crops before a full encode.
+
+Always write a new file rather than over the input, and copy the inputs into the project first: users rename
+and move videos while an edit is running.
 
 ## Background music
 
@@ -49,7 +72,8 @@ A song is almost never the video's length. Cutting its tail chops the last choru
 loses an instrumental intro nobody misses. So the window is anchored on its **end** - the track's last audible
 moment, measured from its loudness profile - and the start is whatever the video's length asks for. The song's own
 ending then lands on the video's last frame and nothing sung is lost. A track shorter than the video is padded with
-silence instead. `--start` forces an offset, `--volume`, `--fade-in`, `--fade-out` and `--poster` tune the rest.
+silence instead. Teams often want their song from its first bar instead: `"music_start": 0` in event.json (or
+`--start 0`) plays it from the beginning and cuts it where the video ends, so ask. `--start` forces any offset, `--volume`, `--fade-in`, `--fade-out` and `--poster` tune the rest.
 
 ## Options (event.json "flythrough")
 
@@ -72,6 +96,7 @@ silence instead. `--start` forces an offset, `--volume`, `--fade-in`, `--fade-ou
 | `line_scale` | 1.0 | multiplies the route line widths and the runner dot; 1.5 reads well on a phone |
 | `imagery_saturation`, `imagery_brightness_min`, `imagery_contrast` | 0 | recolour the tiles; see below |
 | `music` | none | an audio file, relative to the project, for `add_music.py` |
+| `music_start` | none | seconds into the track to start; `0` = from its beginning. Unset anchors the song's end on the last frame |
 
 ## Making the map greener
 
