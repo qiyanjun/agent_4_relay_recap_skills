@@ -30,7 +30,7 @@ Run from any directory; every script takes the project folder. `S` = this skill'
 | 7. Map page | `python3 S/build_map.py P` | `_route_map.html` (one file, ~1 MB) |
 | 8. Snapshots | `node $(bash S/node_setup.sh P)/snapshot_map.mjs out/SLUG_route_map.html out/SLUG_route_map` | `_phone.png`, `_overview.png`, `_map.png` |
 | 9. Share | see "Publishing" below | a private link |
-| 10. Flythrough | ask the questions below, then `python3 S/geocode_places.py P`, `python3 S/export_flythrough.py P` (confirm its leg/runner list with the team), `bash S/render_flythrough.sh P preview`, then without `preview` | `_flythrough.mp4`, `_flythrough_timeline.json` |
+| 10. Flythrough | ask the questions below, then `python3 S/geocode_places.py P`, `python3 S/export_flythrough.py P` (confirm its leg/runner list with the team), `bash S/render_flythrough.sh P preview`, then without `preview` | `_flythrough.mp4`, `_flythrough_timeline.json` (+ `_flythrough_2d3d.mp4` with `side_by_side`) |
 | 11. Music | `python3 S/add_music.py P` | `_flythrough_music.mp4`, cover image on both |
 
 Requirements: Python 3 with `fitparse` and `Pillow`; for steps 8 and 10 Node 18+, Chrome and `ffmpeg`.
@@ -46,6 +46,7 @@ the plain scene.
 | Mark each handoff? | `exchange`: `firework`, `baton`, `none` | **`firework`** - a flash, a shockwave ring and 30 sparks in both runners' colours. `baton` streaks along the course through the exchange instead: quieter, more literally a relay. |
 | An opening title page? | `title: true` (+ `title_seconds`, `title_dark`) | **Yes** - the team name, year and official result, built from `event.json`. It also gives the file a first frame worth looking at. |
 | How should it open? | `opening`: `flyin`, `tilt`, `hold` | **`tilt`** with a title page: a flat map tilts up into the first leg. `flyin` is the stock wide-shot zoom - avoid it if another team's video already used it. |
+| A 2D map beside the 3D view? | `side_by_side: true` (+ `panel_titles`) | Offer it. A top-down 2D map framed on each leg, on the same clock as the 3D view, joined into one 2160-wide video with a title over each half. Doubles the render time. |
 | Background music? | `music: "song.mp3"`, `music_start` | Ask for a file **and where it should start**: from its first bar (`music_start: 0`; the end is cut wherever the video stops) or anchored so the song's own ending lands on the last frame (the default; the intro is trimmed). Teams often want their song from the beginning. |
 
 **Then confirm the runners.** `export_flythrough.py` ends by printing who runs each leg in the video. Names are
@@ -95,7 +96,9 @@ Details: references/map-and-sharing.md. Flythrough tuning and render cost: refer
 | Rebuilt leg pace like 3:00/mi or 25:00/mi | Wrong `before`/`after` file, or routing took a different road; fix `gaps.csv`, delete its cache files, rerun |
 | Uploading `_combined.fit` or several files to Strava | Upload only the Strava copy, once |
 | Editing files in `out/` by hand | They are regenerated; change the config and rerun |
-| Full flythrough render to check framing | Use `preview` first; a full render is ~35 min and ~17 GB of frames for 36 legs |
+| Full flythrough render to check framing | Use `preview` first; a full render is ~35 min and ~17 GB of frames for 36 legs (`WORKERS` captures in parallel, default 3) |
+| Re-rendering only the legs that changed | Every frame shows the legend and every finished leg, so a roster or GPS fix changes the whole video; re-render it all (with `WORKERS`) |
+| Joining a 2D video from another tool to the 3D one | Use `side_by_side`: both halves then share one roster, one clock and the same handoffs |
 | Rendering the whole video to judge the opening | `export_flythrough.py P 1-6` renders the opening and a few legs |
 | A title page whose lines fade up from nothing | Frame 0 is what a player shows unplayed; the page composes on frame 0 by design |
 | `capture.mjs` dies on `"<!DOCTYPE " is not valid JSON` | A stray `http.server` holds the port and 404s; pass another `PORT` |

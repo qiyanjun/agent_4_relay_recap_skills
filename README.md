@@ -13,6 +13,7 @@ A Claude Code plugin that turns a team relay's GPS watch files, from many runner
 | `<slug>_route_map_{phone,overview,map}.png` | Snapshots of that page for group chats and slides |
 | `<slug>_flythrough.mp4` | Vertical 3D flythrough over satellite imagery and terrain, leg by leg |
 | `<slug>_flythrough_music.mp4` | The same video with a background track and a cover image |
+| `<slug>_flythrough_2d3d.mp4` | With `side_by_side`: a top-down 2D map beside the 3D view, on one clock |
 | `<slug>_flythrough_timeline.json` | Every leg's span and every handoff's time and pixel, for editing the video later |
 
 It also rebuilds legs nobody recorded (OpenStreetMap routing, DEM elevation, grade-adjusted timing, clearly
@@ -78,6 +79,7 @@ Set these in `event.json`'s `flythrough` block; all default to off, which gives 
 | `title` | an opening page with the team name, year and official result, built from `event.json` |
 | `opening` | `flyin` (stock wide-shot zoom), `tilt` (a flat map tilting up), or `hold` |
 | `music` | a track for `add_music.py`, trimmed where nobody is singing |
+| `side_by_side` | also render a top-down 2D view and join it beside the 3D one; `panel_titles` names the halves |
 | `music_start` | `0` plays the track from its beginning instead of landing its ending on the last frame |
 | `label_scale`, `line_scale` | bigger labels and thicker route lines, for phone-sized viewing |
 | `imagery_saturation`, `imagery_brightness_min`, `imagery_contrast` | recolour the satellite tiles |

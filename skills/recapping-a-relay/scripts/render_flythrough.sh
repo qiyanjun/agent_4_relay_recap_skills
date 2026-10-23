@@ -4,10 +4,13 @@
 #
 # Usage: bash render_flythrough.sh <project_dir> [preview]
 #   preview  capture every PREVIEW_STEP'th frame (default 30, i.e. one per second of video) for a fast framing check
-# Output: out/<slug>_flythrough.mp4 (or out/<slug>_flythrough_preview.mp4), plus a _timeline.json beside it
-# Env: PORT=8765  CRF=22  PREVIEW_STEP=30  CHROME=/path/to/chrome  FRAMES_DIR=dir (kept)  KEEP=1 (keep temp frames)
-# A full render of a 36-leg relay is ~5800 frames: roughly 35 min and 17 GB of PNGs before encoding. The imagery and
-# terrain tiles stream from the network while capturing.
+# Output: out/<slug>_flythrough.mp4 (or out/<slug>_flythrough_preview.mp4), plus a _timeline.json beside it.
+# With event.json's flythrough.side_by_side, it renders the 3D view, then the 2D view (out/<slug>_flythrough_2d.mp4)
+# on the same clock, then joins them with side_by_side.py into out/<slug>_flythrough_2d3d.mp4.
+# Env: PORT=8765  CRF=22  PREVIEW_STEP=30  WORKERS=3 (Chrome instances capturing at once)  VIEW=3d|2d (one view only)
+#      CHROME=/path/to/chrome  FRAMES_DIR=dir (kept)  KEEP=1 (keep temp frames)
+# A full render of a 36-leg relay is ~5800 frames and ~17 GB of PNGs before encoding; WORKERS divides the capture
+# time, not the disk. The imagery and terrain tiles stream from the network while capturing.
 set -euo pipefail
 HERE="$(cd "$(dirname "$0")" && pwd)"
 [[ $# -ge 1 ]] || { echo "usage: bash render_flythrough.sh <project_dir> [preview]" >&2; exit 2; }
@@ -18,6 +21,17 @@ WORK="$OUTDIR/flythrough"
 [[ -f "$WORK/scene.json" ]] || { echo "missing $WORK/scene.json; run: python3 $HERE/export_flythrough.py $PROJECT" >&2; exit 1; }
 command -v ffmpeg >/dev/null || { echo "ffmpeg not found" >&2; exit 1; }
 
+# side by side: run this script once per view, then join the two
+if [[ -z "${VIEW:-}" ]] && python3 -c "import json, sys; sys.exit(0 if (json.load(open('$PROJECT/event.json')).get('flythrough') or {}).get('side_by_side') else 1)"; then
+  for v in 3d 2d; do
+    VIEW=$v FRAMES_DIR="${FRAMES_DIR:+$FRAMES_DIR/$v}" bash "$0" "$@"
+  done
+  exec python3 "$HERE/side_by_side.py" "$PROJECT" ${2:+"$2"}
+fi
+VIEW="${VIEW:-3d}"
+[[ $VIEW == 3d || $VIEW == 2d ]] || { echo "VIEW must be 3d or 2d" >&2; exit 2; }
+SUFFIX=$([[ $VIEW == 2d ]] && echo _2d || true)
+
 NODE_DIR="$(bash "$HERE/node_setup.sh" "$PROJECT")"
 cp "$HERE/flythrough.html" "$WORK/index.html"
 ln -sfn "$NODE_DIR/node_modules" "$WORK/node_modules"
@@ -25,9 +39,9 @@ ln -sfn "$NODE_DIR/node_modules" "$WORK/node_modules"
 PORT="${PORT:-8765}"
 CRF="${CRF:-22}"
 if [[ "${2:-}" == preview ]]; then
-  STEP="${PREVIEW_STEP:-30}"; OUT="$OUTDIR/${SLUG}_flythrough_preview.mp4"; RATE="30/$STEP"  # same running time as the full video
+  STEP="${PREVIEW_STEP:-30}"; OUT="$OUTDIR/${SLUG}_flythrough${SUFFIX}_preview.mp4"; RATE="30/$STEP"  # same running time as the full video
 else
-  STEP=1; OUT="$OUTDIR/${SLUG}_flythrough.mp4"; RATE=30
+  STEP=1; OUT="$OUTDIR/${SLUG}_flythrough${SUFFIX}.mp4"; RATE=30
 fi
 
 # Only a scratch directory we created ourselves is ours to delete afterwards.
@@ -57,9 +71,9 @@ cleanup() {
 }
 trap cleanup EXIT
 
-echo "flythrough -> $OUT (every ${STEP} frame(s), frames in $FRAMES_DIR)"
-rm -f "$FRAMES_DIR/timeline.json"
-node "$NODE_DIR/capture.mjs" "http://127.0.0.1:$PORT/index.html" "$FRAMES_DIR" "$STEP"
+echo "flythrough ($VIEW) -> $OUT (every ${STEP} frame(s), ${WORKERS:-3} workers, frames in $FRAMES_DIR)"
+rm -f "$FRAMES_DIR/timeline.json" "$FRAMES_DIR"/f_*.png  # a kept FRAMES_DIR must not leak an earlier run's frames
+WORKERS="${WORKERS:-3}" node "$NODE_DIR/capture.mjs" "http://127.0.0.1:$PORT/index.html?view=$VIEW" "$FRAMES_DIR" "$STEP"
 ffmpeg -v error -stats -y -framerate "$RATE" -i "$FRAMES_DIR/f_%05d.png" \
   -c:v libx264 -crf "$CRF" -preset medium -pix_fmt yuv420p -movflags +faststart "$OUT"
 echo "$OUT: $(du -h "$OUT" | cut -f1), $(ffprobe -v error -show_entries format=duration -of csv=p=0 "$OUT" | cut -d. -f1) s"

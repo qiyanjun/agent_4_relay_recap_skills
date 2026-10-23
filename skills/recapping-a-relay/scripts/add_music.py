@@ -5,7 +5,8 @@ Reads event.json's "flythrough": {"music": "song.mp3", "music_start": 0} (relati
 is given. Without a music_start the track is anchored on its end, as below; "music_start": 0 plays it from its
 beginning and lets the end fall wherever the video stops. Ask which the team wants: a team song is often wanted
 from its first bar.
-Writes out/<slug>_flythrough_music.mp4 beside the silent out/<slug>_flythrough.mp4.
+Writes out/<slug>_flythrough_music.mp4 beside the silent out/<slug>_flythrough.mp4, and the same for the
+side-by-side out/<slug>_flythrough_2d3d.mp4 when there is one (it runs on the same clock, so it gets the same cut).
 
 Two things this gets right, both of which are easy to get wrong by hand:
 
@@ -51,7 +52,9 @@ if not music:
 music = music if os.path.isabs(music) else os.path.join(P.root, music)
 if not os.path.exists(music):
     die(f"{music} not found")
-out = P.output("flythrough_music.mp4")
+videos = [(video, P.output("flythrough_music.mp4"))]
+if os.path.exists(P.output("flythrough_2d3d.mp4")):
+    videos.append((P.output("flythrough_2d3d.mp4"), P.output("flythrough_2d3d_music.mp4")))
 
 
 def probe(path):
@@ -93,11 +96,12 @@ print(f"{os.path.basename(video)} {dur:.1f}s + {os.path.basename(music)} "
 
 # apad first, so a video longer than the remaining track still gets a full-length audio stream
 fade_out_at = max(0.0, dur - a.fade_out)
-subprocess.run(["ffmpeg", "-v", "error", "-stats", "-y", "-i", video, "-i", music, "-filter_complex",
-                f"[1:a]apad,atrim={start}:{round(start + dur, 3)},asetpts=N/SR/TB,volume={a.volume},"
-                f"afade=t=in:st=0:d={a.fade_in},afade=t=out:st={fade_out_at}:d={a.fade_out}[a]",
-                "-map", "0:V", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
-                "-shortest", "-movflags", "+faststart", out], check=True)
+for src, out in videos:
+    subprocess.run(["ffmpeg", "-v", "error", "-stats", "-y", "-i", src, "-i", music, "-filter_complex",
+                    f"[1:a]apad,atrim={start}:{round(start + dur, 3)},asetpts=N/SR/TB,volume={a.volume},"
+                    f"afade=t=in:st=0:d={a.fade_in},afade=t=out:st={fade_out_at}:d={a.fade_out}[a]",
+                    "-map", "0:V", "-map", "[a]", "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+                    "-shortest", "-movflags", "+faststart", out], check=True)
 
 
 def set_poster(path, at):
@@ -113,7 +117,8 @@ def set_poster(path, at):
         shutil.move(mp4, path)
 
 
-for path in (video, out):
-    set_poster(path, min(a.poster, dur - 0.1))
-print(f"{out}: {os.path.getsize(out) / 1e6:.0f} MB, {dur:.0f} s, cover image from {a.poster} s "
-      f"(also set on {os.path.basename(video)})")
+for src, out in videos:
+    for path in (src, out):
+        set_poster(path, min(a.poster, dur - 0.1))
+    print(f"{out}: {os.path.getsize(out) / 1e6:.0f} MB, {dur:.0f} s, cover image from {a.poster} s "
+          f"(also set on {os.path.basename(src)})")

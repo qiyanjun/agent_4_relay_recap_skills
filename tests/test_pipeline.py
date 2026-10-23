@@ -258,3 +258,35 @@ def test_route_map_renders_without_page_errors(project, tmp_path):
     assert r.returncode == 0, r.stdout + r.stderr
     for name in ("phone", "overview", "map"):
         assert os.path.getsize(f"{prefix}_{name}.png") > 10_000
+
+
+def _fake_render(root, name, frames=60, legs=(("1", "A"), ("2", "B"))):
+    """A small solid-colour video plus the timeline render_flythrough.sh would write beside it."""
+    slug = json.load(open(os.path.join(root, "event.json")))["slug"]
+    path = os.path.join(root, "out", f"{slug}_{name}.mp4")
+    subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "lavfi", "-i", f"color=c=green:s=108x192:r=30:d={frames / 30}",
+                    "-pix_fmt", "yuv420p", path], check=True)
+    tl = dict(frames=frames, width=108, height=192, legs=[dict(leg=int(n), runner=r, start_frame=0, end_frame=frames)
+                                                          for n, r in legs])
+    json.dump(tl, open(path[:-4] + "_timeline.json", "w"))
+    return path
+
+
+@pytest.mark.skipif(not all(map(shutil.which, ("ffmpeg", "ffprobe"))), reason="needs ffmpeg")
+def test_side_by_side_joins_matching_views_and_refuses_mismatched_ones(tmp_path):
+    root = str(tmp_path / "sbs")
+    make_project(root)
+    os.makedirs(os.path.join(root, "out"), exist_ok=True)
+    _fake_render(root, "flythrough")
+    _fake_render(root, "flythrough_2d")
+    run("side_by_side.py", root)
+    slug = json.load(open(os.path.join(root, "event.json")))["slug"]
+    out = os.path.join(root, "out", f"{slug}_flythrough_2d3d.mp4")
+    size = subprocess.run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height",
+                           "-of", "csv=p=0", out], capture_output=True, text=True).stdout.strip()
+    assert size == "216,204"  # two 108x192 halves under a header of 192/16 px
+
+    # a 2D half rendered before a roster fix must not be joined to a 3D half rendered after it
+    _fake_render(root, "flythrough_2d", legs=(("1", "A"), ("2", "C")))
+    r = run("side_by_side.py", root, ok=False)
+    assert "different timelines or rosters" in (r.stdout + r.stderr)

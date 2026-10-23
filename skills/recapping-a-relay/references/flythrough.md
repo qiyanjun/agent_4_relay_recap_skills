@@ -41,11 +41,30 @@ Every render also writes `_flythrough_timeline.json` (or `_flythrough_preview_ti
 and frame the incoming leg starts, and the exchange point's `x`/`y` pixel under that block's fixed camera, which is
 where the firework or baton fires). The music copy has the same timing.
 
-Env: `PORT` (default 8765; pick another if busy), `CHROME`, `CRF` (quality, default 22), `KEEP=1`.
+Env: `PORT` (default 8765; pick another if busy), `WORKERS` (default 3), `VIEW` (`3d` or `2d`, one view only),
+`CHROME`, `CRF` (quality, default 22), `KEEP=1`.
+
+**Rendering faster.** `WORKERS=n` captures with n windows of one Chrome, each taking a contiguous stretch of
+frames. The first window fits the cameras and label placements and hands them to the others, so their frames
+match a one-window render (the first frame of each stretch is drawn once and discarded, because markers are
+pinned before the terrain under them loads). It divides the capture time, not the ~17 GB of frames. There is no
+partial re-render: every frame shows the legend and all finished legs, so a corrected runner or track changes
+frames from the start of the video.
 
 A stray `python3 -m http.server` left on the port from an earlier run answers `/` with a 404 rather than refusing
 the connection, so the "port in use" check reads it as free and the render then fetches `scene.json` from the wrong
 server. If `capture.mjs` dies on `"<!DOCTYPE " is not valid JSON`, that is what happened: pass another `PORT`.
+
+## Side by side: 2D and 3D
+
+With `side_by_side: true`, `render_flythrough.sh` renders the 3D view, then the 2D view (`?view=2d`, or `VIEW=2d`),
+then runs `side_by_side.py`, which joins them into `_flythrough_2d3d.mp4`: 2D on the left, 3D on the right, a
+header naming each half (`panel_titles`: two `[title, subtitle]` pairs; the defaults are "2D Satellite Map" and
+"3D Terrain Flythrough"). The 2D view is the same scene straight down and north-up, without terrain, framed on
+each leg and gliding to the next in the first 0.9 s of a leg; its town labels are picked per leg. Everything that
+sets the timing is shared, so the halves stay frame-for-frame in step: same clock, same handoffs, same fireworks.
+`side_by_side.py` compares the two timelines first and refuses to join halves rendered from different rosters.
+`add_music.py` gives the side-by-side video the same soundtrack as the 3D one.
 
 ## Editing a finished video
 
@@ -96,6 +115,8 @@ silence instead. Teams often want their song from its first bar instead: `"music
 | `line_scale` | 1.0 | multiplies the route line widths and the runner dot; 1.5 reads well on a phone |
 | `imagery_saturation`, `imagery_brightness_min`, `imagery_contrast` | 0 | recolour the tiles; see below |
 | `music` | none | an audio file, relative to the project, for `add_music.py` |
+| `side_by_side` | `false` | also render the 2D view and join both into `_flythrough_2d3d.mp4` |
+| `panel_titles` | 2D / 3D defaults | `[["title", "subtitle"], ["title", "subtitle"]]` for the 2D and 3D halves |
 | `music_start` | none | seconds into the track to start; `0` = from its beginning. Unset anchors the song's end on the last frame |
 
 ## Making the map greener
